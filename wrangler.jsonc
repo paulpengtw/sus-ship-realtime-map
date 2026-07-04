@@ -1,0 +1,11 @@
+{
+  "name": "cable-guard",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "web/dist", "binding": "ASSETS" },
+  "durable_objects": { "bindings": [{ "name": "TRACKER", "class_name": "TrackerDO" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TrackerDO"] }],
+  "d1_databases": [{ "binding": "DB", "database_name": "cable-guard", "database_id": "REPLACE_ME_AFTER_wrangler_d1_create" }],
+  "triggers": { "crons": ["*/5 * * * *", "15 2 * * *"] }
+}
