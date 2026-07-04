@@ -33,6 +33,9 @@ export function selectVessel(mmsi: number | null): void {
       <ul>${d.events.length ? d.events.map((e) => `<li>${fmtTime(e.startTs)} — ${TYPE_LABEL[e.type] ?? e.type} (sev ${e.severity})${e.endTs === null ? " · ongoing" : ""}</li>`).join("") : "<li>No events</li>"}</ul>`;
     panel.hidden = false;
 
+    (map.getSource("track") as GeoJSONSource | undefined)?.setData({
+      type: "FeatureCollection", features: []
+    } as any);
     const track = map.getSource("track") as GeoJSONSource | undefined;
     if (track && d.track.length > 1) {
       track.setData({ type: "Feature", properties: {},
