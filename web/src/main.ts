@@ -3,7 +3,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { readHash, writeHash, type HashState } from "./hash";
 import { initVessels } from "./vessels";
-import { selectVessel } from "./panels";
+import { initEventFeed, selectVessel } from "./panels";
 
 export const hashState: HashState = readHash();
 
@@ -38,6 +38,8 @@ map.on("load", () => {
     layout: { visibility: "none" }, paint: { "fill-color": "#8b96a5", "fill-opacity": 0.12 } });
 
   initVessels(selectVessel);
+  initEventFeed();
+  if (hashState.vessel) selectVessel(hashState.vessel);
 });
 
 class ExclusionToggle implements maplibregl.IControl {
@@ -57,3 +59,4 @@ class ExclusionToggle implements maplibregl.IControl {
   onRemove() {}
 }
 map.addControl(new ExclusionToggle(), "bottom-right");
+document.getElementById("dossier-close")!.addEventListener("click", () => selectVessel(null));
