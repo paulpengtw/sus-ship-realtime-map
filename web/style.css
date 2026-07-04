@@ -1,0 +1,36 @@
+:root {
+  --bg: #0b1220; --panel: #101a2ecc; --text: #dbe4f0; --muted: #7d8aa0;
+  --amber: #f0a83c; --red: #e5484d; --grey: #8b96a5; --accent: #4cc3ff;
+  font-family: system-ui, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; }
+html, body, #map { height: 100%; background: var(--bg); color: var(--text); }
+#stale-banner {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 30;
+  background: var(--red); color: #fff; text-align: center; padding: 6px; font-size: 14px;
+}
+#event-feed {
+  position: absolute; top: 12px; right: 12px; z-index: 20; width: 300px; max-height: 60vh;
+  overflow-y: auto; background: var(--panel); backdrop-filter: blur(6px);
+  border-radius: 8px; padding: 12px;
+}
+#event-feed h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 8px; }
+#event-list { list-style: none; }
+#event-list li { padding: 8px; border-radius: 6px; cursor: pointer; font-size: 13px; line-height: 1.4; }
+#event-list li:hover { background: #ffffff14; }
+#event-list .sev { font-weight: 700; }
+#event-list .sev-high { color: var(--red); }
+#event-list .sev-mid { color: var(--amber); }
+#event-list .sev-low { color: var(--grey); }
+#event-list time { color: var(--muted); font-size: 11px; display: block; }
+#dossier {
+  position: absolute; top: 12px; left: 12px; z-index: 20; width: 340px; max-height: 80vh;
+  overflow-y: auto; background: var(--panel); backdrop-filter: blur(6px);
+  border-radius: 8px; padding: 16px;
+}
+#dossier-close { position: absolute; top: 8px; right: 10px; background: none; border: 0; color: var(--muted); font-size: 20px; cursor: pointer; }
+#dossier h2 { font-size: 18px; } #dossier h3 { font-size: 12px; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+#dossier .score { font-size: 26px; font-weight: 700; }
+#dossier ul { list-style: none; font-size: 13px; } #dossier li { padding: 4px 0; border-bottom: 1px solid #ffffff10; }
+#attribution { position: absolute; bottom: 4px; left: 8px; z-index: 20; font-size: 11px; color: var(--muted); }
+@media (max-width: 720px) { #event-feed { display: none; } #dossier { width: calc(100vw - 24px); } }

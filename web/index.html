@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Taiwan Cable Guard — live vessel anomaly map</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="map"></div>
+  <div id="stale-banner" hidden></div>
+  <aside id="event-feed"><h2>Live events</h2><ol id="event-list"></ol></aside>
+  <aside id="dossier" hidden>
+    <button id="dossier-close" aria-label="Close">×</button>
+    <div id="dossier-body"></div>
+  </aside>
+  <div id="attribution">Cable routes approximate · AIS via AISStream.io · GFW corroboration delayed ~72 h</div>
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
