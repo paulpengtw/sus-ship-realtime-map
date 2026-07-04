@@ -1,0 +1,11 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature", "properties": { "name": "Kaohsiung anchorage" },
+      "geometry": { "type": "Polygon", "coordinates": [[[120.20, 22.48], [120.38, 22.48], [120.38, 22.63], [120.20, 22.63], [120.20, 22.48]]] } },
+    { "type": "Feature", "properties": { "name": "Keelung anchorage" },
+      "geometry": { "type": "Polygon", "coordinates": [[[121.70, 25.14], [121.82, 25.14], [121.82, 25.24], [121.70, 25.24], [121.70, 25.14]]] } },
+    { "type": "Feature", "properties": { "name": "Taichung anchorage" },
+      "geometry": { "type": "Polygon", "coordinates": [[[120.42, 24.20], [120.55, 24.20], [120.55, 24.32], [120.42, 24.32], [120.42, 24.20]]] } }
+  ]
+}

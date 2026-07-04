@@ -1,0 +1,15 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature", "properties": { "name": "Toucheng East Corridor (intl. landings)", "approximate": true },
+      "geometry": { "type": "LineString", "coordinates": [[121.882, 24.855], [122.4, 24.9], [123.2, 25.0]] } },
+    { "type": "Feature", "properties": { "name": "Tamsui North Corridor (intl. landings)", "approximate": true },
+      "geometry": { "type": "LineString", "coordinates": [[121.41, 25.19], [121.3, 25.6], [121.1, 26.1]] } },
+    { "type": "Feature", "properties": { "name": "Fangshan Southwest Corridor (SMW3/FLAG/APG)", "approximate": true },
+      "geometry": { "type": "LineString", "coordinates": [[120.593, 22.263], [119.8, 21.7], [118.8, 21.3]] } },
+    { "type": "Feature", "properties": { "name": "Taiwan-Matsu No.2/3 (domestic)", "approximate": true },
+      "geometry": { "type": "LineString", "coordinates": [[121.41, 25.19], [120.7, 25.7], [119.97, 26.15]] } },
+    { "type": "Feature", "properties": { "name": "Taiwan-Penghu No.3 (domestic)", "approximate": true },
+      "geometry": { "type": "LineString", "coordinates": [[120.18, 23.35], [119.9, 23.4], [119.6, 23.55]] } }
+  ]
+}
