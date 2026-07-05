@@ -5,7 +5,7 @@ import { readHash, writeHash, type HashState } from "./hash";
 import { initVessels } from "./vessels";
 import { initEventFeed, selectVessel } from "./panels";
 import { getRegion, regionDef } from "./regions";
-import { initRegionSwitcher } from "./switcher";
+import { initRegionSwitcher, initWindowSwitcher } from "./switcher";
 import { loadCables } from "./cables";
 import { initStatsBar } from "./stats";
 import { initTimeline } from "./timeline";
@@ -49,6 +49,7 @@ map.on("load", () => {
   initVessels(selectVessel);
   initEventFeed();
   initRegionSwitcher();
+  initWindowSwitcher();
   initStatsBar();
   initTimeline();
   initCablePanel();
