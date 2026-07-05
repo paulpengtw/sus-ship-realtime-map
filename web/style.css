@@ -6,11 +6,11 @@
 * { box-sizing: border-box; margin: 0; }
 html, body, #map { height: 100%; background: var(--bg); color: var(--text); }
 #stale-banner {
-  position: absolute; top: 0; left: 0; right: 0; z-index: 30;
+  position: absolute; top: 44px; left: 0; right: 0; z-index: 30;
   background: var(--red); color: #fff; text-align: center; padding: 6px; font-size: 14px;
 }
 #event-feed {
-  position: absolute; top: 12px; right: 12px; z-index: 20; width: 300px; max-height: 60vh;
+  position: absolute; top: 56px; right: 12px; z-index: 20; width: 300px; max-height: 60vh;
   overflow-y: auto; background: var(--panel); backdrop-filter: blur(6px);
   border-radius: 8px; padding: 12px;
 }
@@ -24,7 +24,7 @@ html, body, #map { height: 100%; background: var(--bg); color: var(--text); }
 #event-list .sev-low { color: var(--grey); }
 #event-list time { color: var(--muted); font-size: 11px; display: block; }
 #dossier {
-  position: absolute; top: 12px; left: 12px; z-index: 20; width: 340px; max-height: 80vh;
+  position: absolute; top: 56px; left: 12px; z-index: 20; width: 340px; max-height: 80vh;
   overflow-y: auto; background: var(--panel); backdrop-filter: blur(6px);
   border-radius: 8px; padding: 16px;
 }
@@ -34,3 +34,22 @@ html, body, #map { height: 100%; background: var(--bg); color: var(--text); }
 #dossier ul { list-style: none; font-size: 13px; } #dossier li { padding: 4px 0; border-bottom: 1px solid #ffffff10; }
 #attribution { position: absolute; bottom: 4px; left: 8px; z-index: 20; font-size: 11px; color: var(--muted); }
 @media (max-width: 720px) { #event-feed { display: none; } #dossier { width: calc(100vw - 24px); } }
+#topbar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 25; height: 44px;
+  display: flex; align-items: center; gap: 16px; padding: 0 12px;
+  background: var(--panel); backdrop-filter: blur(6px);
+}
+#topbar h1 { font-size: 14px; font-weight: 600; white-space: nowrap; }
+#region-switcher { display: flex; gap: 4px; background: #ffffff10; border-radius: 999px; padding: 3px; }
+#region-switcher button {
+  border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px;
+  padding: 4px 14px; border-radius: 999px; cursor: pointer;
+}
+#region-switcher button.active { background: var(--accent); color: #06121f; font-weight: 600; }
+#help-btn {
+  margin-left: auto; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--muted);
+  background: none; color: var(--muted); font-size: 14px; cursor: pointer;
+}
+#stats-bar { display: flex; gap: 14px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+#stats-bar b { color: var(--text); font-size: 13px; }
+@media (max-width: 720px) { #topbar h1, #stats-bar { display: none; } }

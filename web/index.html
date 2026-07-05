@@ -3,10 +3,20 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Taiwan Cable Guard — live vessel anomaly map</title>
+  <title>East Asia Cable Guard — live vessel anomaly map</title>
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
+  <header id="topbar">
+    <h1>East Asia Cable Guard</h1>
+    <nav id="region-switcher" aria-label="Region">
+      <button data-region="kr">Korea</button>
+      <button data-region="tw">Taiwan</button>
+      <button data-region="jp">Japan</button>
+    </nav>
+    <div id="stats-bar" hidden></div>
+    <button id="help-btn" title="About &amp; tour" aria-label="About and tour">?</button>
+  </header>
   <div id="map"></div>
   <div id="stale-banner" hidden></div>
   <aside id="event-feed"><h2>Live events</h2><ol id="event-list"></ol></aside>

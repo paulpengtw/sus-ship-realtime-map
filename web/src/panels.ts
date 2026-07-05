@@ -3,6 +3,7 @@ import type { GeoJSONSource } from "maplibre-gl";
 import { fetchEvents, fetchVessel, type ApiEvent } from "./api";
 import { writeHash } from "./hash";
 import { hashState, map } from "./main";
+import { getRegion, onRegionChange } from "./regions";
 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 const fmtTime = (ts: number) => new Date(ts).toISOString().replace("T", " ").slice(0, 16) + "Z";
@@ -59,7 +60,7 @@ export function initEventFeed(): void {
   const list = document.getElementById("event-list")!;
   const poll = async () => {
     try {
-      const res = await fetchEvents(Date.now() - 24 * 3_600_000);
+      const res = await fetchEvents(Date.now() - 24 * 3_600_000, getRegion());
       list.innerHTML = res.events.map(renderEvent).join("") || "<li>No events in the last 24 h</li>";
     } catch (err) { console.error("event feed failed:", err); }
   };
@@ -71,4 +72,5 @@ export function initEventFeed(): void {
   });
   void poll();
   setInterval(poll, 15_000);
+  onRegionChange(() => void poll());
 }

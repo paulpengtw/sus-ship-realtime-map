@@ -4,14 +4,17 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { readHash, writeHash, type HashState } from "./hash";
 import { initVessels } from "./vessels";
 import { initEventFeed, selectVessel } from "./panels";
+import { getRegion, regionDef } from "./regions";
+import { initRegionSwitcher } from "./switcher";
 
 export const hashState: HashState = readHash();
 
+const home = regionDef(getRegion());
 export const map = new maplibregl.Map({
   container: "map",
   style: "https://tiles.openfreemap.org/styles/dark",
-  center: hashState.view ? [hashState.view.lon, hashState.view.lat] : [120.9, 23.7],
-  zoom: hashState.view?.zoom ?? 6.3,
+  center: hashState.view ? [hashState.view.lon, hashState.view.lat] : home.center,
+  zoom: hashState.view?.zoom ?? home.zoom,
   attributionControl: { compact: true },
 });
 map.addControl(new maplibregl.NavigationControl(), "bottom-right");
@@ -39,6 +42,7 @@ map.on("load", () => {
 
   initVessels(selectVessel);
   initEventFeed();
+  initRegionSwitcher();
   if (hashState.vessel) selectVessel(hashState.vessel);
 });
 
