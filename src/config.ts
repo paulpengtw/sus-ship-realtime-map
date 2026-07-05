@@ -37,7 +37,11 @@ export const CONFIG = {
   scoreHalfLifeMs: 24 * 60 * 60 * 1000,
   persistMinIntervalMs: 5 * 60 * 1000,
   persistMinMoveM: 100,
-  positionRetentionMs: 30 * 24 * 60 * 60 * 1000,
+  // Tiered position retention (trajectories spec §1): ≤48 h raw, then 1 pt/10 min to 30 d, 1 pt/h to 180 d.
+  retentionTiers: [
+    { minAgeMs: 48 * 3_600_000, maxAgeMs: 30 * 86_400_000, bucketMs: 10 * 60_000 },
+    { minAgeMs: 30 * 86_400_000, maxAgeMs: 180 * 86_400_000, bucketMs: 3_600_000 },
+  ],
   snapshotWindowMs: 60 * 60 * 1000,
   staleAfterMs: 5 * 60 * 1000,
   alarmIntervalMs: 30 * 1000,

@@ -1,7 +1,7 @@
 // test/db.test.ts
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { flushWrites, loadRecentVesselStates, newPendingWrites, pruneOldPositions } from "../src/db";
+import { flushWrites, loadRecentVesselStates, newPendingWrites } from "../src/db";
 import { newVesselState } from "../src/types";
 
 const T0 = 1_750_000_000_000;
@@ -52,14 +52,5 @@ describe("db persistence", () => {
     expect(states[0].ring).toHaveLength(1);
     expect(states[0].ring[0].lon).toBeCloseTo(120.2);
     expect(states[0].score).toBeCloseTo(6.5);
-  });
-
-  it("pruneOldPositions deletes only old rows", async () => {
-    const p = samplePending();
-    p.positions.push({ mmsi: 412000001, lon: 120.2, lat: 22.0, sog: 0.5, cog: 90, heading: 90, ts: T0 - 40 * 24 * 3_600_000 });
-    await flushWrites(env.DB, p);
-    await pruneOldPositions(env.DB, T0 - 30 * 24 * 3_600_000);
-    const rows = await env.DB.prepare("SELECT COUNT(*) AS n FROM positions").first<any>();
-    expect(rows.n).toBe(1);
   });
 });

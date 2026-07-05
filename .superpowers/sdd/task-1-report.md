@@ -1,46 +1,27 @@
-# Task 1 Report
+Status: DONE_WITH_CONCERNS
 
-## What I Implemented
+Changes:
+- Added `CONFIG.retentionTiers` with the specified 48 h raw, 30 d 10-minute, and 180 d hourly boundaries; removed `positionRetentionMs`.
+- Replaced `pruneOldPositions` with `thinPositions(db, now, tiers)`.
+- `thinPositions` deletes points older than the oldest configured tier and keeps the earliest point per `(mmsi, bucket)` inside each thinning tier.
+- Wired the Tracker Durable Object hourly maintenance block to call `thinPositions(this.env.DB, now, CONFIG.retentionTiers)`.
+- Removed the obsolete `pruneOldPositions` test from `test/db.test.ts`.
+- Added `test/thinning.test.ts` covering raw retention, 10-minute thinning, per-vessel independence, hourly thinning, and deletion beyond 180 days.
 
-- Created the Cloudflare Worker project scaffold for `cable-guard-map`.
-- Added package scripts for testing, local development, web build, deploy, and replay.
-- Added TypeScript, Wrangler, and Vitest worker-pool configuration.
-- Added a Worker entrypoint and `TrackerDO` Durable Object stub.
-- Added D1 migration test setup and a smoke test for the D1 binding.
-- Added placeholder directories for `migrations/` and `web/dist/`.
-- Added `.gitignore` entries for generated and local-only files.
+Implementation note:
+- The brief's SQL grouped by `ts / ?3`, but D1 binding grouped those as fractional values in the focused test run. The implemented SQL uses `CAST(ts / ?3 AS INTEGER)` so buckets are integer time buckets while preserving the specified behavior.
 
-## What I Tested and Test Results
+Test results:
+- Initial red test: `npm test -- test/thinning.test.ts` failed as expected because `thinPositions` was not exported.
+- Focused verification: `npm test -- test/thinning.test.ts test/db.test.ts` passed, 2 test files and 8 tests.
+- Full verification: `npm test` passed, 30 test files and 128 tests.
+- Typecheck: `npx tsc --noEmit` failed with existing unrelated errors outside the scoped files:
+  - missing Node types / implicit anys in `scripts/replay.ts`
+  - duplicate `shipType` declarations in `src/types.ts`
+  - sync/async `parseFrame` type mismatch in `test/frame-decode.test.ts`
+  - missing `localStorage` DOM type in `web/src/regions.ts`
 
-- Ran `npm install`: succeeded.
-- Ran `npm test`: succeeded.
-- Result: 1 test file passed, 1 test passed.
-
-## Files Changed
-
-- `.gitignore`
-- `.superpowers/sdd/task-1-report.md`
-- `migrations/.gitkeep`
-- `package-lock.json`
-- `package.json`
-- `src/do/tracker.ts`
-- `src/worker.ts`
-- `test/apply-migrations.ts`
-- `test/env.d.ts`
-- `test/smoke.test.ts`
-- `tsconfig.json`
-- `vitest.config.ts`
-- `web/dist/.gitkeep`
-- `wrangler.jsonc`
-
-## Self-Review Findings
-
-- `vitest.config.ts` uses `import.meta.dirname` as required for the ESM project.
-- The Durable Object stub compiles without adding a constructor.
-- The smoke test verifies the configured D1 binding can execute a basic query.
-- The report was written before commit so it is included with the scaffold changes.
-
-## Issues or Concerns
-
-- `npm install` reported 4 dependency vulnerabilities from the installed dependency tree: 1 moderate and 3 high. I did not run `npm audit fix --force` because it may introduce breaking dependency changes outside the requested scaffold.
-- During tests, Miniflare warned that the installed runtime supports compatibility date `2025-09-06` and fell back from the configured `2026-06-01`. The test still passed with the requested Wrangler configuration.
+Concerns:
+- `npx tsc --noEmit` is not green due to the unrelated errors listed above. The thinning implementation did not add typecheck errors in the scoped files.
+- Vitest/Miniflare continues to emit the existing compatibility-date warning: installed runtime supports `2025-09-06` and falls back from configured `2026-06-01`.
+- One existing pipeline test intentionally logs a detector error for its failure-isolation assertion.

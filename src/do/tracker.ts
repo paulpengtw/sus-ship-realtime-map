@@ -1,6 +1,6 @@
 // src/do/tracker.ts — websocket lifecycle, alarms, batching. Logic lives in pipeline.ts.
 import { CONFIG } from "../config";
-import { flushWrites, loadRecentVesselStates, newPendingWrites, pruneOldPositions, type PendingWrites } from "../db";
+import { flushWrites, loadRecentVesselStates, newPendingWrites, thinPositions, type PendingWrites } from "../db";
 import { GeoContext } from "../geo/context";
 import { Tracker } from "../pipeline";
 import { parseFrame } from "../aisstream";
@@ -136,10 +136,10 @@ export class TrackerDO implements DurableObject {
       }
     }
 
-    // 4. Hourly retention prune.
+    // 4. Hourly tiered thinning (trajectories spec §1).
     if (now - this.lastPruneAt > 3_600_000) {
       this.lastPruneAt = now;
-      try { await pruneOldPositions(this.env.DB, now - CONFIG.positionRetentionMs); } catch (err) { console.error(err); }
+      try { await thinPositions(this.env.DB, now, CONFIG.retentionTiers); } catch (err) { console.error(err); }
     }
 
     await this.ctx.storage.setAlarm(now + CONFIG.alarmIntervalMs);

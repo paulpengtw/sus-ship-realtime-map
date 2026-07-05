@@ -62,6 +62,21 @@ export async function loadRecentVesselStates(db: D1Database, sinceTs: number): P
   });
 }
 
-export async function pruneOldPositions(db: D1Database, beforeTs: number): Promise<void> {
-  await db.prepare(`DELETE FROM positions WHERE ts < ?1`).bind(beforeTs).run();
+export interface RetentionTier { minAgeMs: number; maxAgeMs: number; bucketMs: number }
+
+// Tiered thinning (trajectories spec §1): within each age tier keep the earliest point per
+// (mmsi, time-bucket); everything older than the last tier is deleted outright.
+export async function thinPositions(db: D1Database, now: number, tiers: readonly RetentionTier[]): Promise<void> {
+  const stmts = tiers.map((t) => db.prepare(
+    `DELETE FROM positions
+     WHERE ts >= ?1 AND ts < ?2
+       AND (mmsi, ts) NOT IN (
+         SELECT mmsi, MIN(ts) FROM positions
+         WHERE ts >= ?1 AND ts < ?2
+         GROUP BY mmsi, CAST(ts / ?3 AS INTEGER)
+       )`,
+  ).bind(now - t.maxAgeMs, now - t.minAgeMs, t.bucketMs));
+  const oldestMs = Math.max(...tiers.map((t) => t.maxAgeMs));
+  stmts.push(db.prepare(`DELETE FROM positions WHERE ts < ?1`).bind(now - oldestMs));
+  await db.batch(stmts);
 }
