@@ -47,8 +47,8 @@ describe("Tracker pipeline", () => {
 
   it("handleStatic records identity and fires on swap", () => {
     const t = new Tracker(geo, CONFIG);
-    t.handleStatic({ mmsi: 5, name: "A", callsign: "BV111", ts: T0 });
-    const evs = t.handleStatic({ mmsi: 5, name: "B", callsign: "BV111", ts: T0 + 3_600_000 });
+    t.handleStatic({ mmsi: 5, name: "A", callsign: "BV111", shipType: null, ts: T0 });
+    const evs = t.handleStatic({ mmsi: 5, name: "B", callsign: "BV111", shipType: null, ts: T0 + 3_600_000 });
     expect(evs.some((e) => e.type === "identity")).toBe(true);
   });
 });

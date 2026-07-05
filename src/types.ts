@@ -13,10 +13,11 @@ export interface AisIdentity {
   mmsi: number;
   name: string;
   callsign: string;
+  shipType: number | null;
   ts: number;
 }
 
-export type EventType = "loitering" | "ais_gap" | "identity" | "anchor_drag";
+export type EventType = "loitering" | "ais_gap" | "identity" | "anchor_drag" | "speed_anomaly" | "route_deviation";
 export type Severity = 1 | 2 | 3 | 4 | 5;
 
 export interface AnomalyEvent {
@@ -35,6 +36,7 @@ export interface VesselState {
   mmsi: number;
   name: string | null;
   callsign: string | null;
+  shipType: number | null;
   ring: AisPosition[];
   identities: AisIdentity[];
   lastSeen: number;
@@ -42,17 +44,20 @@ export interface VesselState {
   loiterReported: boolean;
   gapOpenSince: number | null;
   dragReportedTs: number | null;
+  lastSpeedEventTs: number | null;
+  lastRouteEventTs: number | null;
   score: number;
   scoreTs: number;
 }
 
 export function newVesselState(mmsi: number, now: number): VesselState {
   return {
-    mmsi, name: null, callsign: null,
+    mmsi, name: null, callsign: null, shipType: null,
     ring: [], identities: [],
     lastSeen: now,
     loiterStart: null, loiterReported: false,
     gapOpenSince: null, dragReportedTs: null,
+    lastSpeedEventTs: null, lastRouteEventTs: null,
     score: 0, scoreTs: now,
   };
 }

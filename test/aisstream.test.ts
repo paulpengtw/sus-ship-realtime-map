@@ -35,7 +35,7 @@ describe("aisstream parsing", () => {
       Message: { ShipStaticData: { Name: "SHUNXIN 39", CallSign: "BXYZ1" } },
     };
     const out = parseAisStreamMessage(raw)!;
-    expect(out.ident).toMatchObject({ mmsi: 412345678, name: "SHUNXIN 39", callsign: "BXYZ1" });
+    expect(out.ident).toMatchObject({ mmsi: 412345678, name: "SHUNXIN 39", callsign: "BXYZ1", shipType: null });
   });
 
   it("returns null on malformed input instead of throwing", () => {
