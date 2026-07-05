@@ -8,6 +8,7 @@ async function seed() {
   await env.DB.batch([
     env.DB.prepare("DELETE FROM vessels"), env.DB.prepare("DELETE FROM positions"),
     env.DB.prepare("DELETE FROM events"), env.DB.prepare("DELETE FROM gfw_events"),
+    env.DB.prepare("DELETE FROM gfw_backfill"),
     env.DB.prepare(`INSERT INTO vessels (mmsi, name, callsign, last_lon, last_lat, last_sog, last_cog, last_ts, score, score_ts)
                     VALUES (412000001, 'TEST SHIP', 'BXYZ1', 120.2, 22.0, 0.5, 90, ?1, 6.5, ?1)`).bind(T0),
     env.DB.prepare(`INSERT INTO vessels (mmsi, name, callsign, last_lon, last_lat, last_sog, last_cog, last_ts, score, score_ts)
@@ -54,12 +55,25 @@ describe("API worker", () => {
     expect(body.events[0].id).toBe("gfw-1");
   });
 
-  it("/api/vessel/:mmsi returns dossier with ascending track", async () => {
+  it("/api/vessel/:mmsi returns dossier metadata (track moved to /track)", async () => {
     const body = await (await SELF.fetch("https://x/api/vessel/412000001")).json<any>();
     expect(body.vessel.name).toBe("TEST SHIP");
-    expect(body.track).toHaveLength(2);
-    expect(body.track[0].ts).toBeLessThan(body.track[1].ts);
+    expect(body.track).toBeUndefined();
     expect(body.events).toHaveLength(1);
+  });
+
+  it("/api/vessel/:mmsi/track returns windowed points + GFW breadcrumbs", async () => {
+    // Fresh gfw_backfill row → the endpoint's on-demand backfill is a cache hit (no live fetch in tests).
+    await env.DB.prepare(`INSERT OR REPLACE INTO gfw_backfill (mmsi, gfw_id, fetched_ts) VALUES (412000001, 'g1', ?1)`)
+      .bind(Date.now()).run();
+    const body = await (await SELF.fetch("https://x/api/vessel/412000001/track?window=day")).json<any>();
+    expect(body.points).toHaveLength(2);
+    expect(body.points[0].ts).toBeLessThan(body.points[1].ts);
+    expect(body.gfwEvents).toHaveLength(1); // seeded gfw-1 (mmsi 412000001, 1 h before T0)
+    expect(body.gfwEvents[0].id).toBe("gfw-1");
+    expect(body.gfwError).toBe(false);
+    expect((await SELF.fetch("https://x/api/vessel/412000001/track?window=year")).status).toBe(400);
+    expect((await SELF.fetch("https://x/api/vessel/999999999/track")).status).toBe(404);
   });
 
   it("/api/vessel unknown mmsi -> 404; bad mmsi -> 400", async () => {

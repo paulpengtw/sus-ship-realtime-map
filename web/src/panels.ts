@@ -1,6 +1,6 @@
 // web/src/panels.ts
 import type { GeoJSONSource } from "maplibre-gl";
-import { fetchEvents, fetchVessel, type ApiEvent } from "./api";
+import { fetchEvents, fetchVessel, fetchVesselTrack, type ApiEvent } from "./api";
 import { writeHash } from "./hash";
 import { hashState, map } from "./main";
 import { flagForMmsi } from "./mid";
@@ -63,14 +63,16 @@ export function selectVessel(mmsi: number | null): void {
       <ul>${d.events.length ? d.events.map((e) => `<li>${fmtTime(e.startTs)} — ${TYPE_LABEL[e.type] ?? e.type} (sev ${e.severity})${e.endTs === null ? " · ongoing" : ""}</li>`).join("") : "<li>No events</li>"}</ul>`;
     panel.hidden = false;
 
-    (map.getSource("track") as GeoJSONSource | undefined)?.setData({
-      type: "FeatureCollection", features: []
-    } as any);
-    const track = map.getSource("track") as GeoJSONSource | undefined;
-    if (track && d.track.length > 1) {
-      track.setData({ type: "Feature", properties: {},
-        geometry: { type: "LineString", coordinates: d.track.map((p) => [p.lon, p.lat]) } } as any);
-    }
+    void fetchVesselTrack(mmsi, "month").then((t) => {   // "month" literal until Task 9 wires the window store
+      const track = map.getSource("track") as GeoJSONSource | undefined;
+      if (!track) return;
+      if (t.points.length > 1) {
+        track.setData({ type: "Feature", properties: {},
+          geometry: { type: "LineString", coordinates: t.points.map((p) => [p.lon, p.lat]) } } as any);
+      } else {
+        track.setData({ type: "FeatureCollection", features: [] } as any);
+      }
+    }).catch((err) => console.error("track failed:", err));
   }).catch((err) => console.error("dossier failed:", err));
 }
 

@@ -1,7 +1,7 @@
 export { TrackerDO } from "./do/tracker";
 import { CONFIG } from "./config";
 import { decayedScore } from "./score";
-import { gfwSync } from "./gfw";
+import { gfwBackfillVessel, gfwSync } from "./gfw";
 import { decimatePoints, parseWindow } from "./trajectories";
 
 export interface Env {
@@ -191,15 +191,35 @@ export default {
       });
     }
 
+    const trackMatch = /^\/api\/vessel\/(\d{1,9})\/track$/.exec(url.pathname);
+    if (trackMatch) {
+      const mmsi = Number(trackMatch[1]);
+      const winMs = parseWindow(url.searchParams.get("window"));
+      if (winMs === null) return json({ error: "bad window" }, 400);
+      const vessel = await env.DB.prepare(`SELECT mmsi FROM vessels WHERE mmsi = ?1`).bind(mmsi).first<any>();
+      if (!vessel) return json({ error: "unknown vessel" }, 404);
+      // On-demand GFW backfill (24 h cache). A GFW failure must not block our own points (spec §4).
+      const { error: gfwError } = await gfwBackfillVessel(env, mmsi, now);
+      const [points, gfw] = await Promise.all([
+        env.DB.prepare(`SELECT ts, lon, lat, sog, cog FROM positions WHERE mmsi = ?1 AND ts >= ?2 ORDER BY ts ASC`)
+          .bind(mmsi, now - winMs).all<any>(),
+        env.DB.prepare(`SELECT id, type, lon, lat, start_ts, end_ts FROM gfw_events WHERE mmsi = ?1 AND start_ts >= ?2 ORDER BY start_ts ASC`)
+          .bind(mmsi, now - winMs).all<any>(),
+      ]);
+      return json({
+        generatedAt: now,
+        points: points.results,
+        gfwEvents: gfw.results.map((r: any) => ({ id: r.id, type: r.type, lon: r.lon, lat: r.lat, startTs: r.start_ts, endTs: r.end_ts })),
+        gfwError,
+      });
+    }
+
     const vesselMatch = /^\/api\/vessel\/(\d{1,9})$/.exec(url.pathname);
     if (vesselMatch) {
       const mmsi = Number(vesselMatch[1]);
       const vessel = await env.DB.prepare(`SELECT * FROM vessels WHERE mmsi = ?1`).bind(mmsi).first<any>();
       if (!vessel) return json({ error: "unknown vessel" }, 404);
-      const [track, events] = await Promise.all([
-        env.DB.prepare(`SELECT ts, lon, lat, sog, cog FROM positions WHERE mmsi = ?1 ORDER BY ts DESC LIMIT 500`).bind(mmsi).all<any>(),
-        env.DB.prepare(`SELECT * FROM events WHERE mmsi = ?1 ORDER BY start_ts DESC LIMIT 100`).bind(mmsi).all<any>(),
-      ]);
+      const events = await env.DB.prepare(`SELECT * FROM events WHERE mmsi = ?1 ORDER BY start_ts DESC LIMIT 100`).bind(mmsi).all<any>();
       return json({
         generatedAt: now,
         vessel: {
@@ -211,7 +231,6 @@ export default {
           dimBow: vessel.dim_bow ?? null, dimStern: vessel.dim_stern ?? null,
           dimPort: vessel.dim_port ?? null, dimStarboard: vessel.dim_starboard ?? null,
         },
-        track: track.results.reverse(),
         events: events.results.map(rowToEvent),
       });
     }
