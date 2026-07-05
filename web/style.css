@@ -89,6 +89,7 @@ html, body, #map { height: 100%; background: var(--bg); color: var(--text); }
 .legend-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
 .swatch { flex: 0 0 22px; height: 10px; border-radius: 3px; }
 .swatch.ramp { background: linear-gradient(90deg, var(--grey), var(--amber), var(--red)); border-radius: 5px; }
+.swatch.sus-line { height: 0; border-top: 2px solid var(--amber); opacity: .8; }
 .swatch.cable { height: 0; border-top: 2px dashed var(--accent); }
 .swatch.zone { background: #8b96a533; border: 1px solid #8b96a5; }
 .swatch.gfw { width: 10px; flex-basis: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #b18cff; margin: 0 6px; background: transparent; }

@@ -3,6 +3,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { readHash, writeHash, type HashState } from "./hash";
 import { initVessels } from "./vessels";
+import { initTrajectories } from "./trajectories";
 import { initEventFeed, selectVessel } from "./panels";
 import { getRegion, regionDef } from "./regions";
 import { initRegionSwitcher, initWindowSwitcher } from "./switcher";
@@ -47,6 +48,7 @@ map.on("load", () => {
     layout: { visibility: "none" }, paint: { "fill-color": "#8b96a5", "fill-opacity": 0.12 } });
 
   initVessels(selectVessel);
+  initTrajectories(selectVessel);
   initEventFeed();
   initRegionSwitcher();
   initWindowSwitcher();
