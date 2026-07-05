@@ -45,11 +45,24 @@ export default {
     if (url.pathname === "/api/snapshot") {
       const region = regionParam(url);
       if (region === null) return json({ error: "bad region" }, 400);
+      const eventsSince = now - 86_400_000; // open events older than 24 h don't flag a vessel
+      const baseSelect = `
+        SELECT v.*, COALESCE(ev.active_events, 0) AS active_events, ev.top_type
+        FROM vessels v
+        LEFT JOIN (
+          SELECT e.mmsi, COUNT(*) AS active_events,
+                 (SELECT e2.type FROM events e2
+                  WHERE e2.mmsi = e.mmsi AND e2.end_ts IS NULL AND e2.start_ts >= ?2
+                  ORDER BY e2.severity DESC, e2.start_ts DESC LIMIT 1) AS top_type
+          FROM events e
+          WHERE e.end_ts IS NULL AND e.start_ts >= ?2
+          GROUP BY e.mmsi
+        ) ev ON ev.mmsi = v.mmsi`;
       const { results } = region
-        ? await env.DB.prepare(`SELECT * FROM vessels WHERE last_ts >= ?1 AND region = ?2 ORDER BY score DESC`)
-            .bind(now - CONFIG.snapshotWindowMs, region).all<any>()
-        : await env.DB.prepare(`SELECT * FROM vessels WHERE last_ts >= ?1 ORDER BY score DESC`)
-            .bind(now - CONFIG.snapshotWindowMs).all<any>();
+        ? await env.DB.prepare(`${baseSelect} WHERE v.last_ts >= ?1 AND v.region = ?3 ORDER BY v.score DESC`)
+            .bind(now - CONFIG.snapshotWindowMs, eventsSince, region).all<any>()
+        : await env.DB.prepare(`${baseSelect} WHERE v.last_ts >= ?1 ORDER BY v.score DESC`)
+            .bind(now - CONFIG.snapshotWindowMs, eventsSince).all<any>();
       const newestTs = results.reduce((m, r) => Math.max(m, r.last_ts), 0);
       return json({
         generatedAt: now,
@@ -64,6 +77,8 @@ export default {
               score: Math.round(decayedScore(r.score, r.score_ts, now, CONFIG.scoreHalfLifeMs) * 10) / 10,
               lastTs: r.last_ts,
               region: r.region ?? null, shipType: r.ship_type ?? null,
+              activeEvents: r.active_events,
+              topType: r.top_type ?? null,
             },
           })),
         },

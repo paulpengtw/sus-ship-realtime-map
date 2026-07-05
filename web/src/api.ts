@@ -1,5 +1,5 @@
 // web/src/api.ts — mirrors Task 11 response shapes.
-export interface VesselProps { mmsi: number; name: string | null; sog: number; cog: number; score: number; lastTs: number; region: string | null; shipType: number | null }
+export interface VesselProps { mmsi: number; name: string | null; sog: number; cog: number; score: number; lastTs: number; region: string | null; shipType: number | null; activeEvents: number; topType: string | null }
 export interface Snapshot { generatedAt: number; newestTs: number | null; vessels: GeoJSON.FeatureCollection<GeoJSON.Point, VesselProps> }
 export interface ApiEvent { id: string; type: string; severity: number; mmsi: number; lon: number; lat: number; startTs: number; endTs: number | null; evidence: Record<string, unknown>; region: string | null }
 export interface EventsResponse { generatedAt: number; events: ApiEvent[] }

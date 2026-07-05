@@ -66,4 +66,26 @@ describe("API worker", () => {
     expect((await SELF.fetch("https://x/api/vessel/999999999")).status).toBe(404);
     expect((await SELF.fetch("https://x/api/vessel/abc")).status).toBe(400);
   });
+
+  it("/api/snapshot joins open events into activeEvents/topType", async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO vessels (mmsi, name, callsign, last_lon, last_lat, last_sog, last_cog, last_ts, score, score_ts)
+                      VALUES (412000003, 'CALM SHIP', NULL, 121.5, 24.0, 8, 45, ?1, 0, ?1)`).bind(T0),
+      // higher-severity open event for 412000001 — must win topType over the seeded loitering (sev 3)
+      env.DB.prepare(`INSERT INTO events (id, type, severity, mmsi, lon, lat, start_ts, end_ts, evidence)
+                      VALUES ('gap-412000001-1', 'gap', 4, 412000001, 120.2, 22.0, ?1, NULL, '{}')`).bind(T0 - 1000),
+      // closed event for 412000003 — must not count
+      env.DB.prepare(`INSERT INTO events (id, type, severity, mmsi, lon, lat, start_ts, end_ts, evidence)
+                      VALUES ('speed-412000003-1', 'speed_anomaly', 2, 412000003, 121.5, 24.0, ?1, ?2, '{}')`).bind(T0 - 5000, T0 - 4000),
+      // open but older than 24 h — must not count either
+      env.DB.prepare(`INSERT INTO events (id, type, severity, mmsi, lon, lat, start_ts, end_ts, evidence)
+                      VALUES ('loitering-412000003-old', 'loitering', 3, 412000003, 121.5, 24.0, ?1, NULL, '{}')`).bind(Date.now() - 25 * 3_600_000),
+    ]);
+    const body = await (await SELF.fetch("https://x/api/snapshot")).json<any>();
+    const props = Object.fromEntries(body.vessels.features.map((f: any) => [f.properties.mmsi, f.properties]));
+    expect(props[412000001].activeEvents).toBe(2);   // seeded loitering + gap
+    expect(props[412000001].topType).toBe("gap");    // severity 4 beats 3
+    expect(props[412000003].activeEvents).toBe(0);   // closed + stale-open events excluded
+    expect(props[412000003].topType).toBeNull();
+  });
 });
