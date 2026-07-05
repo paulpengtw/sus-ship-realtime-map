@@ -24,6 +24,14 @@
     <button id="dossier-close" aria-label="Close">×</button>
     <div id="dossier-body"></div>
   </aside>
+  <details id="legend">
+    <summary>Legend</summary>
+    <div class="legend-row"><span class="swatch ramp"></span> Vessel suspicion score (grey 0 → amber 3 → red 8+)</div>
+    <div class="legend-row"><span class="swatch cable"></span> Cable corridor (dashed = approximate route)</div>
+    <div class="legend-row"><span class="swatch zone"></span> Exclusion zone (anchorage; toggle with ⚓)</div>
+    <div class="legend-row"><span class="swatch gfw"></span> GFW-confirmed event (delayed ~72 h)</div>
+    <div class="legend-row"><span class="swatch track"></span> Selected vessel track</div>
+  </details>
   <div id="attribution">Cable routes approximate · AIS via AISStream.io · GFW corroboration delayed ~72 h</div>
   <script type="module" src="./src/main.ts"></script>
 </body>
