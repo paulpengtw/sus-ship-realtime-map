@@ -11,6 +11,9 @@ export interface Dossier {
   track: { ts: number; lon: number; lat: number; sog: number; cog: number }[];
   events: ApiEvent[];
 }
+export interface RegionStats { vessels: number; activeAlerts: number; events24h: number }
+export interface DayBucket { day: string; counts: number[] }
+export interface StatsResponse { generatedAt: number; regions: Record<string, RegionStats>; histogram: Record<string, DayBucket[]> }
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(path);
@@ -23,3 +26,4 @@ export const fetchEvents = (since: number, region?: string, limit?: number) =>
   get<EventsResponse>(`/api/events?since=${since}${region ? `&region=${region}` : ""}${limit ? `&limit=${limit}` : ""}`);
 export const fetchGfw = () => get<GfwResponse>("/api/gfw");
 export const fetchVessel = (mmsi: number) => get<Dossier>(`/api/vessel/${mmsi}`);
+export const fetchStats = () => get<StatsResponse>("/api/stats");
