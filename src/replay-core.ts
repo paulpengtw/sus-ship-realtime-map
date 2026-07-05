@@ -5,7 +5,7 @@ import type { GeoContext } from "./geo/context";
 import { Tracker } from "./pipeline";
 import type { AnomalyEvent } from "./types";
 
-export function replayCapture(lines: string[], geo: GeoContext, tickIntervalMs = CONFIG.alarmIntervalMs): {
+export function replayCapture(lines: string[], geo: GeoContext, tickIntervalMs = CONFIG.alarmIntervalMs, region?: string): {
   events: AnomalyEvent[]; vessels: number; messages: number;
 } {
   const tracker = new Tracker(geo);
@@ -29,5 +29,5 @@ export function replayCapture(lines: string[], geo: GeoContext, tickIntervalMs =
     if (p.pos) { events.push(...tracker.handlePosition(p.pos)); messages++; }
     if (p.ident) { events.push(...tracker.handleStatic(p.ident)); messages++; }
   }
-  return { events, vessels: tracker.states.size, messages };
+  return { events: region ? events.filter((e) => e.region === region) : events, vessels: tracker.states.size, messages };
 }
