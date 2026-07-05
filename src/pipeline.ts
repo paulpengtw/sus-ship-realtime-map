@@ -4,6 +4,8 @@ import { anchorDragOnMessage } from "./detectors/anchorDrag";
 import { gapOnMessage, gapOnTick } from "./detectors/gap";
 import { identityOnStatic, teleportOnMessage } from "./detectors/identity";
 import { loiteringOnMessage } from "./detectors/loitering";
+import { routeOnMessage } from "./detectors/route";
+import { speedOnMessage } from "./detectors/speed";
 import type { GeoContext } from "./geo/context";
 import { applyEventToScore } from "./score";
 import { newVesselState, type AisIdentity, type AisPosition, type AnomalyEvent, type VesselState } from "./types";
@@ -30,7 +32,6 @@ export class Tracker {
     const s = this.state(msg.mmsi, msg.ts);
     const events: AnomalyEvent[] = [];
 
-    // Detectors run against the PRE-update state (ring still ends at the previous fix).
     if (s.gapOpenSince !== null) {
       events.push(...this.guard(s, () => gapOnMessage(s, msg, this.geo, this.cfg)));
     } else {
@@ -38,6 +39,8 @@ export class Tracker {
     }
     events.push(...this.guard(s, () => loiteringOnMessage(s, msg, this.geo, this.cfg)));
     events.push(...this.guard(s, () => anchorDragOnMessage(s, msg, this.geo, this.cfg)));
+    events.push(...this.guard(s, () => speedOnMessage(s, msg, this.geo, this.cfg)));
+    events.push(...this.guard(s, () => routeOnMessage(s, msg, this.geo, this.cfg)));
 
     for (const ev of events) applyEventToScore(s, ev, this.cfg, msg.ts);
 
@@ -50,6 +53,7 @@ export class Tracker {
   handleStatic(ident: AisIdentity): AnomalyEvent[] {
     const s = this.state(ident.mmsi, ident.ts);
     const events = this.guard(s, () => identityOnStatic(s, ident, this.cfg));
+    if (ident.shipType !== null) s.shipType = ident.shipType;
     for (const ev of events) applyEventToScore(s, ev, this.cfg, ident.ts);
     return events;
   }
