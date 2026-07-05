@@ -9,6 +9,8 @@ import { initRegionSwitcher } from "./switcher";
 import { loadCables } from "./cables";
 import { initStatsBar } from "./stats";
 import { initTimeline } from "./timeline";
+import { initCablePanel } from "./cablepanel";
+import { initOnboarding } from "./onboarding";
 
 export const hashState: HashState = readHash();
 
@@ -49,7 +51,9 @@ map.on("load", () => {
   initRegionSwitcher();
   initStatsBar();
   initTimeline();
+  initCablePanel();
   if (hashState.vessel) selectVessel(hashState.vessel);
+  initOnboarding();
 });
 
 class ExclusionToggle implements maplibregl.IControl {

@@ -34,6 +34,18 @@ html, body, #map { height: 100%; background: var(--bg); color: var(--text); }
 #dossier ul { list-style: none; font-size: 13px; } #dossier li { padding: 4px 0; border-bottom: 1px solid #ffffff10; }
 #attribution { position: absolute; bottom: 4px; left: 8px; z-index: 20; font-size: 11px; color: var(--muted); }
 @media (max-width: 720px) { #event-feed { display: none; } #dossier { width: calc(100vw - 24px); } }
+
+#cable-panel {
+  position: absolute; bottom: 24px; right: 12px; z-index: 21; width: 320px; max-height: 50vh;
+  overflow-y: auto; background: var(--panel); backdrop-filter: blur(6px); border-radius: 8px; padding: 16px;
+}
+#cable-panel-close { position: absolute; top: 8px; right: 10px; background: none; border: 0; color: var(--muted); font-size: 20px; cursor: pointer; }
+#cable-panel h2 { font-size: 15px; padding-right: 20px; }
+#cable-panel h3 { font-size: 11px; text-transform: uppercase; color: var(--muted); margin: 10px 0 4px; }
+#cable-panel ul { list-style: none; font-size: 13px; }
+#cable-panel .notes { font-size: 12px; color: var(--muted); }
+#cable-panel .buffer-count { font-size: 13px; margin-top: 10px; }
+@media (max-width: 720px) { #cable-panel { width: calc(100vw - 24px); } }
 #topbar {
   position: absolute; top: 0; left: 0; right: 0; z-index: 25; height: 44px;
   display: flex; align-items: center; gap: 16px; padding: 0 12px;
@@ -73,3 +85,39 @@ html, body, #map { height: 100%; background: var(--bg); color: var(--text); }
 #timeline rect.day-hit:hover { fill: #ffffff14; }
 #timeline rect.selected-outline { fill: none; stroke: var(--accent); stroke-width: 1; }
 #timeline .tl-caption { font-size: 10px; color: var(--muted); display: flex; justify-content: space-between; }
+#intro-modal {
+  position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+  background: #000000a0;
+}
+.intro-card {
+  width: min(480px, calc(100vw - 32px)); max-height: 85vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid #ffffff20; border-radius: 12px; padding: 24px;
+}
+.intro-card h2 { margin-bottom: 10px; }
+.intro-card h3 { margin: 14px 0 8px; font-size: 13px; text-transform: uppercase; color: var(--muted); }
+.intro-card p { font-size: 14px; line-height: 1.5; margin-bottom: 8px; }
+.intro-regions { display: flex; gap: 8px; }
+.intro-regions button {
+  flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--accent);
+  background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer;
+}
+.intro-regions button:hover { background: var(--accent); color: #06121f; }
+.intro-card .intro-tour {
+  margin-top: 12px; width: 100%; padding: 8px; border-radius: 8px; border: 0;
+  background: #ffffff14; color: var(--muted); font: inherit; cursor: pointer;
+}
+#tour-overlay { position: fixed; inset: 0; z-index: 60; }
+#tour-overlay .tour-spot {
+  position: fixed; border-radius: 10px; pointer-events: none;
+  box-shadow: 0 0 0 9999px #000000a0; border: 2px solid var(--accent);
+}
+#tour-overlay .tour-tip {
+  position: fixed; width: 320px; background: var(--bg); border: 1px solid #ffffff20;
+  border-radius: 10px; padding: 14px;
+}
+#tour-overlay .tour-tip h3 { font-size: 14px; margin-bottom: 6px; }
+#tour-overlay .tour-tip p { font-size: 13px; line-height: 1.5; color: var(--text); }
+#tour-overlay .tour-nav { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+#tour-overlay .tour-nav button { margin-left: auto; padding: 5px 14px; border-radius: 6px; border: 0; font: inherit; cursor: pointer; }
+#tour-overlay .tour-nav .tour-skip { margin-left: auto; background: none; color: var(--muted); }
+#tour-overlay .tour-nav .tour-next { margin-left: 0; background: var(--accent); color: #06121f; font-weight: 600; }
