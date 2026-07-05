@@ -2,6 +2,7 @@ export { TrackerDO } from "./do/tracker";
 import { CONFIG } from "./config";
 import { decayedScore } from "./score";
 import { gfwSync } from "./gfw";
+import { decimatePoints, parseWindow } from "./trajectories";
 
 export interface Env {
   DB: D1Database;
@@ -82,6 +83,57 @@ export default {
             },
           })),
         },
+      });
+    }
+
+    if (url.pathname === "/api/trajectories") {
+      const region = regionParam(url);
+      if (region === null) return json({ error: "bad region" }, 400);
+      const winMs = parseWindow(url.searchParams.get("window"));
+      if (winMs === null) return json({ error: "bad window" }, 400);
+      const eventsSince = now - 86_400_000; // same open-event rule as /api/snapshot
+      // SQL prefilter only (decayed score can never exceed the stored score); exact decay,
+      // the sus test, and the top-50 cap happen in JS with the shared decayedScore().
+      const susSelect = `
+        SELECT v.mmsi, v.name, v.score, v.score_ts, COALESCE(ev.active_events, 0) AS active_events, ev.top_type
+        FROM vessels v
+        LEFT JOIN (
+          SELECT e.mmsi, COUNT(*) AS active_events,
+                 (SELECT e2.type FROM events e2
+                  WHERE e2.mmsi = e.mmsi AND e2.end_ts IS NULL AND e2.start_ts >= ?1
+                  ORDER BY e2.severity DESC, e2.start_ts DESC LIMIT 1) AS top_type
+          FROM events e
+          WHERE e.end_ts IS NULL AND e.start_ts >= ?1
+          GROUP BY e.mmsi
+        ) ev ON ev.mmsi = v.mmsi
+        WHERE (COALESCE(ev.active_events, 0) > 0 OR v.score >= ?2)`;
+      const { results } = region
+        ? await env.DB.prepare(`${susSelect} AND v.region = ?3`).bind(eventsSince, CONFIG.susScoreThreshold, region).all<any>()
+        : await env.DB.prepare(susSelect).bind(eventsSince, CONFIG.susScoreThreshold).all<any>();
+      const sus = results
+        .map((r) => ({ ...r, decayed: decayedScore(r.score, r.score_ts, now, CONFIG.scoreHalfLifeMs) }))
+        .filter((r) => r.active_events > 0 || r.decayed >= CONFIG.susScoreThreshold)
+        .sort((a, b) => b.decayed - a.decayed)
+        .slice(0, CONFIG.trajectoryMaxVessels);
+      if (!sus.length) return json({ generatedAt: now, trajectories: [] });
+      const marks = sus.map((_, i) => `?${i + 2}`).join(",");
+      const { results: pts } = await env.DB.prepare(
+        `SELECT mmsi, ts, lon, lat FROM positions WHERE ts >= ?1 AND mmsi IN (${marks}) ORDER BY mmsi, ts`,
+      ).bind(now - winMs, ...sus.map((s) => s.mmsi)).all<any>();
+      const byMmsi = new Map<number, [number, number, number][]>();
+      for (const p of pts) {
+        let arr = byMmsi.get(p.mmsi);
+        if (!arr) byMmsi.set(p.mmsi, (arr = []));
+        arr.push([p.lon, p.lat, p.ts]);
+      }
+      return json({
+        generatedAt: now,
+        trajectories: sus.map((s) => ({
+          mmsi: s.mmsi, name: s.name,
+          score: Math.round(s.decayed * 10) / 10,
+          topType: s.top_type ?? null,
+          points: decimatePoints(byMmsi.get(s.mmsi) ?? [], CONFIG.trajectoryMaxPoints),
+        })).filter((t) => t.points.length >= 2), // a single point can't draw a line
       });
     }
 
