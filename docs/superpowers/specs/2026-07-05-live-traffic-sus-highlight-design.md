@@ -37,7 +37,7 @@ No new endpoints. No schema change. Response is backward-compatible (additive pr
 
 Replace the single circle layer with three layers, bottom to top:
 
-1. **Traffic layer** — symbol layer using a small SDF triangle generated in code (no asset file), `icon-rotate` bound to `cog`, `icon-color` bound to the existing score ramp with a brighter base grey (≈ `#aab6c8`) so calm traffic is clearly visible. Vessels with no usable heading (`cog` null, or effectively stationary) fall back to a dot rendering.
+1. **Traffic layer** — symbol layer using a small SDF triangle generated in code (no asset file), `icon-rotate` bound to `cog`, `icon-color` bound to the existing score ramp with a brighter base grey (≈ `#aab6c8`) so calm traffic is clearly visible. Vessels with no usable heading (`cog` null, or `sog` < 0.5 kn) fall back to a dot rendering.
 2. **Sus halo layer** — circle layer filtered to `activeEvents > 0`; a pulsing red halo animated via `requestAnimationFrame` driving `circle-radius` and `circle-opacity` sinusoidally with a ~1.5 s period. Drawn above all traffic.
 3. **Sus icon emphasis** — highlighted vessels' triangles render ~1.5× larger and solid red, overriding the ramp.
 
