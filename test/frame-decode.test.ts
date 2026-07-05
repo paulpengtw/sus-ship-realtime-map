@@ -37,4 +37,12 @@ describe("parseFrame", () => {
   it("treats valid-but-irrelevant JSON as ignored, not an error", () => {
     expect(parseFrame('{"error":"Api Key Is Not Valid"}').kind).toBe("ignored");
   });
+
+  it("parses a Blob frame (Cloudflare Workers sends Blob)", async () => {
+    const blob = new Blob([JSON_TEXT], { type: "application/json" });
+    const r = await parseFrame(blob);
+    expect(r.kind).toBe("ok");
+    expect(r.kind === "ok" && r.pos?.mmsi).toBe(412000001);
+  });
+
 });

@@ -69,11 +69,11 @@ export class TrackerDO implements DurableObject {
     }
   }
 
-  private onWsMessage(ev: MessageEvent): void {
+  private async onWsMessage(ev: MessageEvent): Promise<void> {
     this.lastWsMessageAt = Date.now();
     // Per-message try/catch: one malformed message must not kill the handler (spec §6).
     try {
-      const frame = parseFrame(ev.data);
+      const frame = await parseFrame(ev.data);
       if (frame.kind === "error") { this.parseFailures++; return; }
       if (frame.kind === "ignored") return;
       if (frame.pos) {

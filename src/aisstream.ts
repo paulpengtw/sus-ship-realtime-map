@@ -63,7 +63,8 @@ export type FrameResult =
   | { kind: "error" };    // frame could not be decoded or parsed
 
 // aisstream.io delivers frames as binary (ArrayBuffer) — decode before JSON.parse.
-export function parseFrame(data: unknown): FrameResult {
+export function parseFrame(data: unknown): FrameResult | Promise<FrameResult> {
+  if (data instanceof Blob) return data.text().then((t) => parseFrame(t));
   try {
     let text: string;
     if (typeof data === "string") text = data;
