@@ -20,7 +20,7 @@ function setStaleBanner(newestTs: number | null): void {
   const el = document.getElementById("stale-banner")!;
   if (newestTs !== null && Date.now() - newestTs > STALE_MS) {
     const t = new Date(newestTs);
-    el.textContent = ;
+    el.textContent = `⚠ data stale since ${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
     el.hidden = false;
   } else {
     el.hidden = true;
