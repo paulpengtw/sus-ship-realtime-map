@@ -36,7 +36,8 @@ export function parseAisStreamMessage(raw: unknown): { pos?: AisPosition; ident?
 
     if (r.MessageType === "ShipStaticData" && r.Message?.ShipStaticData) {
       const sd = r.Message.ShipStaticData;
-      return { ident: { mmsi, name: String(sd.Name ?? "").trim(), callsign: String(sd.CallSign ?? "").trim(), shipType: null, ts } };
+      const shipType = Number(sd.Type);
+      return { ident: { mmsi, name: String(sd.Name ?? "").trim(), callsign: String(sd.CallSign ?? "").trim(), shipType: Number.isInteger(shipType) && shipType > 0 ? shipType : null, ts } };
     }
 
     return null;
