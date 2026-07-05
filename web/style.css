@@ -66,3 +66,4 @@ html, body, #map { height: 100%; background: var(--bg); color: var(--text); }
 .swatch.gfw { width: 10px; flex-basis: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #b18cff; margin: 0 6px; background: transparent; }
 .swatch.track { height: 0; border-top: 2px solid var(--accent); }
 @media (max-width: 720px) { #legend { display: none; } }
+#event-list .corridor { display: block; color: var(--accent); font-size: 11px; }

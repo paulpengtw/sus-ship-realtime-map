@@ -6,6 +6,7 @@ import { hashState, map } from "./main";
 import { flagForMmsi } from "./mid";
 import { getRegion, onRegionChange } from "./regions";
 import { shipTypeLabel } from "./shiptype";
+import { nearestCorridor } from "./cables";
 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 const fmtTime = (ts: number) => new Date(ts).toISOString().replace("T", " ").slice(0, 16) + "Z";
@@ -71,9 +72,13 @@ export function selectVessel(mmsi: number | null): void {
 
 function renderEvent(ev: ApiEvent): string {
   const sevClass = ev.severity >= 4 ? "sev-high" : ev.severity === 3 ? "sev-mid" : "sev-low";
+  const hit = nearestCorridor([ev.lon, ev.lat]);
+  const corridor = hit
+    ? `<span class="corridor">${esc(hit.cable.name)} · ${(hit.distanceM / 1000).toFixed(1)} km</span>`
+    : "";
   return `<li data-lon="${ev.lon}" data-lat="${ev.lat}" data-mmsi="${ev.mmsi}">
     <span class="sev ${sevClass}">sev ${ev.severity}</span> ${TYPE_LABEL[ev.type] ?? ev.type} — MMSI ${ev.mmsi}${ev.endTs === null ? " · ongoing" : ""}
-    <time>${fmtTime(ev.startTs)}</time></li>`;
+    ${corridor}<time>${fmtTime(ev.startTs)}</time></li>`;
 }
 
 export function initEventFeed(): void {

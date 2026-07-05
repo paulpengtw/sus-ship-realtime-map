@@ -6,6 +6,8 @@ import { initVessels } from "./vessels";
 import { initEventFeed, selectVessel } from "./panels";
 import { getRegion, regionDef } from "./regions";
 import { initRegionSwitcher } from "./switcher";
+import { loadCables } from "./cables";
+import { initStatsBar } from "./stats";
 
 export const hashState: HashState = readHash();
 
@@ -26,6 +28,7 @@ map.on("moveend", () => {
 });
 
 map.on("load", () => {
+  void loadCables().catch((err) => console.error("cables load failed:", err));
   map.addSource("cables", { type: "geojson", data: "/data/cables.json" });
   map.addSource("exclusions", { type: "geojson", data: "/data/exclusions.json" });
 
@@ -43,6 +46,7 @@ map.on("load", () => {
   initVessels(selectVessel);
   initEventFeed();
   initRegionSwitcher();
+  initStatsBar();
   if (hashState.vessel) selectVessel(hashState.vessel);
 });
 
