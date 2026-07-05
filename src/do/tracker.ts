@@ -3,7 +3,7 @@ import { CONFIG } from "../config";
 import { flushWrites, loadRecentVesselStates, newPendingWrites, pruneOldPositions, type PendingWrites } from "../db";
 import { GeoContext } from "../geo/context";
 import { Tracker } from "../pipeline";
-import { parseAisStreamMessage } from "../aisstream";
+import { parseFrame } from "../aisstream";
 import { haversineM } from "../geo/geo";
 import type { AisPosition } from "../types";
 import type { Env } from "../worker";
@@ -17,6 +17,7 @@ export class TrackerDO implements DurableObject {
   private hydrated = false;
   private lastPersisted = new Map<number, AisPosition>(); // downsampling reference
   private lastPruneAt = 0;
+  private parseFailures = 0; // logged as one summary line per alarm window
 
   constructor(private ctx: DurableObjectState, private env: Env) {}
 
@@ -72,18 +73,19 @@ export class TrackerDO implements DurableObject {
     this.lastWsMessageAt = Date.now();
     // Per-message try/catch: one malformed message must not kill the handler (spec §6).
     try {
-      const parsed = parseAisStreamMessage(JSON.parse(String(ev.data)));
-      if (!parsed) return;
-      if (parsed.pos) {
-        const events = this.tracker.handlePosition(parsed.pos);
+      const frame = parseFrame(ev.data);
+      if (frame.kind === "error") { this.parseFailures++; return; }
+      if (frame.kind === "ignored") return;
+      if (frame.pos) {
+        const events = this.tracker.handlePosition(frame.pos);
         this.pending.events.push(...events);
-        this.pending.vessels.set(parsed.pos.mmsi, this.tracker.states.get(parsed.pos.mmsi)!);
-        this.maybeQueuePosition(parsed.pos);
+        this.pending.vessels.set(frame.pos.mmsi, this.tracker.states.get(frame.pos.mmsi)!);
+        this.maybeQueuePosition(frame.pos);
       }
-      if (parsed.ident) {
-        const events = this.tracker.handleStatic(parsed.ident);
+      if (frame.ident) {
+        const events = this.tracker.handleStatic(frame.ident);
         this.pending.events.push(...events);
-        this.pending.vessels.set(parsed.ident.mmsi, this.tracker.states.get(parsed.ident.mmsi)!);
+        this.pending.vessels.set(frame.ident.mmsi, this.tracker.states.get(frame.ident.mmsi)!);
       }
     } catch (err) {
       console.error("message handling error:", err);
@@ -102,6 +104,12 @@ export class TrackerDO implements DurableObject {
 
   async alarm(): Promise<void> {
     const now = Date.now();
+
+    // 0. Aggregated parse-failure log: one line per window keeps `wrangler tail` readable.
+    if (this.parseFailures > 0) {
+      console.error(`ws: ${this.parseFailures} unparseable frames since last alarm`);
+      this.parseFailures = 0;
+    }
 
     // 1. Watchdog: reconnect (with backoff) if the stream went quiet.
     const wsOpen = this.ws !== null && this.ws.readyState === WebSocket.READY_STATE_OPEN;
