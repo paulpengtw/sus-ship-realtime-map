@@ -7,7 +7,7 @@ export interface GfwEvent { id: string; type: string; mmsi: number | null; lon: 
 export interface GfwResponse { generatedAt: number; events: GfwEvent[] }
 export interface Dossier {
   generatedAt: number;
-  vessel: { mmsi: number; name: string | null; callsign: string | null; lon: number; lat: number; sog: number; cog: number; lastTs: number; score: number };
+  vessel: { mmsi: number; name: string | null; callsign: string | null; lon: number; lat: number; sog: number; cog: number; lastTs: number; score: number; region: string | null; shipType: number | null; destination: string | null; dimBow: number | null; dimStern: number | null; dimPort: number | null; dimStarboard: number | null };
   track: { ts: number; lon: number; lat: number; sog: number; cog: number }[];
   events: ApiEvent[];
 }
