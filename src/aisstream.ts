@@ -56,3 +56,22 @@ export function parseAisStreamMessage(raw: unknown): { pos?: AisPosition; ident?
     return null;
   }
 }
+
+export type FrameResult =
+  | { kind: "ok"; pos?: AisPosition; ident?: AisIdentity }
+  | { kind: "ignored" }   // decoded fine, but not a message type we use
+  | { kind: "error" };    // frame could not be decoded or parsed
+
+// aisstream.io delivers frames as binary (ArrayBuffer) — decode before JSON.parse.
+export function parseFrame(data: unknown): FrameResult {
+  try {
+    let text: string;
+    if (typeof data === "string") text = data;
+    else if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) text = new TextDecoder().decode(data);
+    else return { kind: "error" };
+    const parsed = parseAisStreamMessage(JSON.parse(text));
+    return parsed ? { kind: "ok", ...parsed } : { kind: "ignored" };
+  } catch {
+    return { kind: "error" };
+  }
+}
