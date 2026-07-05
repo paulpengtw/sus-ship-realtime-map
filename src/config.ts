@@ -9,7 +9,6 @@ export interface Region {
 }
 
 export const CONFIG = {
-  bbox: { minLon: 118.0, minLat: 21.0, maxLon: 124.5, maxLat: 26.5 },
   // Order matters: region tagging is first-match-wins (spec §1).
   regions: [
     { id: "kr", name: "Korea",

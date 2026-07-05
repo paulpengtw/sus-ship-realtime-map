@@ -5,6 +5,7 @@ import { gapOnMessage, gapOnTick } from "./detectors/gap";
 import { identityOnStatic, teleportOnMessage } from "./detectors/identity";
 import { loiteringOnMessage } from "./detectors/loitering";
 import type { GeoContext } from "./geo/context";
+import { regionForPoint } from "./geo/regions";
 import { applyEventToScore } from "./score";
 import { newVesselState, type AisIdentity, type AisPosition, type AnomalyEvent, type VesselState } from "./types";
 
@@ -39,7 +40,12 @@ export class Tracker {
     events.push(...this.guard(s, () => loiteringOnMessage(s, msg, this.geo, this.cfg)));
     events.push(...this.guard(s, () => anchorDragOnMessage(s, msg, this.geo, this.cfg)));
 
-    for (const ev of events) applyEventToScore(s, ev, this.cfg, msg.ts);
+    const region = regionForPoint(msg.lon, msg.lat);
+    s.region = region;
+    for (const ev of events) {
+      ev.region = region;
+      applyEventToScore(s, ev, this.cfg, msg.ts);
+    }
 
     s.ring.push(msg);
     if (s.ring.length > this.cfg.ringSize) s.ring.shift();
@@ -50,7 +56,13 @@ export class Tracker {
   handleStatic(ident: AisIdentity): AnomalyEvent[] {
     const s = this.state(ident.mmsi, ident.ts);
     const events = this.guard(s, () => identityOnStatic(s, ident, this.cfg));
-    for (const ev of events) applyEventToScore(s, ev, this.cfg, ident.ts);
+    if (ident.shipType != null) s.shipType = ident.shipType;
+    if (ident.destination != null) s.destination = ident.destination;
+    if (ident.dimBow != null) s.dimBow = ident.dimBow;
+    if (ident.dimStern != null) s.dimStern = ident.dimStern;
+    if (ident.dimPort != null) s.dimPort = ident.dimPort;
+    if (ident.dimStarboard != null) s.dimStarboard = ident.dimStarboard;
+    for (const ev of events) { ev.region = s.region; applyEventToScore(s, ev, this.cfg, ident.ts); }
     return events;
   }
 
@@ -58,7 +70,7 @@ export class Tracker {
     const events: AnomalyEvent[] = [];
     for (const s of this.states.values()) {
       const evs = this.guard(s, () => gapOnTick(s, this.geo, this.cfg, now));
-      for (const ev of evs) applyEventToScore(s, ev, this.cfg, now);
+      for (const ev of evs) { ev.region = s.region; applyEventToScore(s, ev, this.cfg, now); }
       events.push(...evs);
     }
     return events;

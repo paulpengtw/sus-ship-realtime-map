@@ -53,10 +53,9 @@ export class TrackerDO implements DurableObject {
       ws.addEventListener("open", () => {
         this.backoffMs = CONFIG.backoffMinMs;
         this.lastWsMessageAt = Date.now();
-        const b = CONFIG.bbox;
         ws.send(JSON.stringify({
           APIKey: this.env.AISSTREAM_KEY,
-          BoundingBoxes: [[[b.minLat, b.minLon], [b.maxLat, b.maxLon]]], // AISStream expects [lat, lon]
+          BoundingBoxes: CONFIG.regions.map((r) => [[r.bbox.minLat, r.bbox.minLon], [r.bbox.maxLat, r.bbox.maxLon]]), // AISStream expects [lat, lon]
           FilterMessageTypes: ["PositionReport", "ShipStaticData"],
         }));
       });

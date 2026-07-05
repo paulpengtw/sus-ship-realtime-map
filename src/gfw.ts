@@ -10,7 +10,12 @@ export const GFW_DATASETS = [
 const GFW_URL = "https://gateway.api.globalfishingwatch.org/v3/events?limit=500&offset=0";
 
 export async function gfwSync(env: Env, now: number, fetchImpl: typeof fetch = fetch): Promise<number> {
-  const b = CONFIG.bbox;
+  const b = CONFIG.regions.reduce((acc, r) => ({
+    minLon: Math.min(acc.minLon, r.bbox.minLon),
+    minLat: Math.min(acc.minLat, r.bbox.minLat),
+    maxLon: Math.max(acc.maxLon, r.bbox.maxLon),
+    maxLat: Math.max(acc.maxLat, r.bbox.maxLat),
+  }), CONFIG.regions[0].bbox);
   const res = await fetchImpl(GFW_URL, {
     method: "POST",
     headers: { Authorization: `Bearer ${env.GFW_TOKEN}`, "content-type": "application/json" },
