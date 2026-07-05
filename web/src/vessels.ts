@@ -2,6 +2,7 @@
 import type { GeoJSONSource } from "maplibre-gl";
 import { fetchGfw, fetchSnapshot } from "./api";
 import { map } from "./main";
+import { healthView } from "./health";
 
 const POLL_MS = 15_000;
 const STALE_MS = 5 * 60_000; // keep in sync with CONFIG.staleAfterMs
@@ -16,15 +17,15 @@ const COLOR = ["case", SUS_ACTIVE, "#ff2b2b",
 // Heading is only trustworthy when the vessel is actually moving (spec: sog >= 0.5 kn).
 const HAS_HEADING = ["all", ["has", "cog"], [">=", ["coalesce", ["get", "sog"], 0], 0.5]] as any;
 
-function setStaleBanner(newestTs: number | null): void {
-  const el = document.getElementById("stale-banner")!;
-  if (newestTs !== null && Date.now() - newestTs > STALE_MS) {
-    const t = new Date(newestTs);
-    el.textContent = `⚠ data stale since ${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
-    el.hidden = false;
-  } else {
-    el.hidden = true;
-  }
+function applyHealth(newestTs: number | null, vesselCount: number): void {
+  const h = healthView(newestTs, vesselCount, Date.now(), STALE_MS);
+  const banner = document.getElementById("stale-banner")!;
+  banner.hidden = h.bannerHidden;
+  banner.textContent = h.bannerText;
+  const chip = document.getElementById("status-chip")!;
+  chip.textContent = h.chipText;
+  chip.classList.toggle("live", h.chipLive);
+  chip.classList.toggle("stale", !h.chipLive);
 }
 
 // Generated SDF so MapLibre can tint the icon via icon-color (only SDF icons are tintable).
@@ -65,10 +66,10 @@ async function poll(): Promise<void> {
   try {
     const snap = await fetchSnapshot();
     (map.getSource("vessels") as GeoJSONSource | undefined)?.setData(snap.vessels as any);
-    setStaleBanner(snap.newestTs);
+    applyHealth(snap.newestTs, snap.vessels.features.length);
   } catch (err) {
     console.error("snapshot poll failed:", err);
-    setStaleBanner(0); // unreachable API = stale (spec §6: never silently show stale data)
+    applyHealth(0, 0); // unreachable API = stale (spec §6: never silently show stale data)
   }
 }
 
