@@ -1,0 +1,11 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature", "properties": { "name": "Taiwan Strait North-South (western)" },
+      "geometry": { "type": "LineString", "coordinates": [[119.5, 22.5], [119.3, 23.0], [119.2, 23.8], [119.5, 24.5], [119.8, 25.2]] } },
+    { "type": "Feature", "properties": { "name": "Taiwan Strait North-South (eastern)" },
+      "geometry": { "type": "LineString", "coordinates": [[120.3, 22.3], [120.0, 23.0], [119.8, 23.8], [120.0, 24.5], [120.3, 25.0]] } },
+    { "type": "Feature", "properties": { "name": "Kaohsiung approach" },
+      "geometry": { "type": "LineString", "coordinates": [[120.0, 22.2], [120.2, 22.4], [120.3, 22.55]] } }
+  ]
+}

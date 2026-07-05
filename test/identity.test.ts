@@ -5,7 +5,7 @@ import { callsignCountry, identityOnStatic, midCountry, teleportOnMessage } from
 
 const T0 = 1_750_000_000_000;
 const id = (mmsi: number, name: string, callsign: string, tMin: number): AisIdentity =>
-  ({ mmsi, name, callsign, ts: T0 + tMin * 60_000 });
+  ({ mmsi, name, callsign, shipType: null, ts: T0 + tMin * 60_000 });
 
 describe("identity detector", () => {
   it("first identity is recorded silently", () => {

@@ -35,7 +35,33 @@ describe("aisstream parsing", () => {
       Message: { ShipStaticData: { Name: "SHUNXIN 39", CallSign: "BXYZ1" } },
     };
     const out = parseAisStreamMessage(raw)!;
-    expect(out.ident).toMatchObject({ mmsi: 412345678, name: "SHUNXIN 39", callsign: "BXYZ1" });
+    expect(out.ident).toMatchObject({ mmsi: 412345678, name: "SHUNXIN 39", callsign: "BXYZ1", shipType: null });
+  });
+
+  it("extracts ShipStaticData.Type into shipType", () => {
+    const raw = {
+      MessageType: "ShipStaticData",
+      MetaData: { MMSI: 412345678, latitude: 24.5, longitude: 121.9, time_utc: "2026-07-04 12:00:00.000000 +0000 UTC" },
+      Message: { ShipStaticData: { Name: "CARGO VESSEL", CallSign: "BXYZ2", Type: 70 } },
+    };
+    const out = parseAisStreamMessage(raw)!;
+    expect(out.ident!.shipType).toBe(70);
+  });
+
+  it("shipType defaults to null when Type is missing or zero", () => {
+    const raw = {
+      MessageType: "ShipStaticData",
+      MetaData: { MMSI: 412345679, latitude: 24.5, longitude: 121.9, time_utc: "2026-07-04 12:00:00.000000 +0000 UTC" },
+      Message: { ShipStaticData: { Name: "UNKNOWN", CallSign: "BXYZ3" } },
+    };
+    expect(parseAisStreamMessage(raw)!.ident!.shipType).toBeNull();
+
+    const rawZero = {
+      MessageType: "ShipStaticData",
+      MetaData: { MMSI: 412345679, latitude: 24.5, longitude: 121.9, time_utc: "2026-07-04 12:00:00.000000 +0000 UTC" },
+      Message: { ShipStaticData: { Name: "UNKNOWN", CallSign: "BXYZ3", Type: 0 } },
+    };
+    expect(parseAisStreamMessage(rawZero)!.ident!.shipType).toBeNull();
   });
 
   it("returns null on malformed input instead of throwing", () => {

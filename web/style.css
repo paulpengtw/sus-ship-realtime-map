@@ -33,6 +33,14 @@ html, body, #map { height: 100%; background: var(--bg); color: var(--text); }
 #dossier .score { font-size: 26px; font-weight: 700; }
 #dossier ul { list-style: none; font-size: 13px; } #dossier li { padding: 4px 0; border-bottom: 1px solid #ffffff10; }
 #attribution { position: absolute; bottom: 4px; left: 8px; z-index: 20; font-size: 11px; color: var(--muted); }
+#filter-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+#filter-chips button {
+  background: #ffffff10; border: 1px solid #ffffff20; color: var(--muted);
+  border-radius: 12px; padding: 3px 10px; font-size: 11px; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+#filter-chips button:hover { background: #ffffff18; }
+#filter-chips button.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
 @media (max-width: 720px) { #event-feed { display: none; } #dossier { width: calc(100vw - 24px); } }
 
 #cable-panel {

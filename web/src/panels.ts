@@ -11,7 +11,10 @@ import { getDayFilter, onDayFilter } from "./timeline";
 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 const fmtTime = (ts: number) => new Date(ts).toISOString().replace("T", " ").slice(0, 16) + "Z";
-const TYPE_LABEL: Record<string, string> = { loitering: "Loitering", ais_gap: "AIS gap", identity: "Identity anomaly", anchor_drag: "Anchor drag" };
+const TYPE_LABEL: Record<string, string> = {
+  loitering: "Loitering", ais_gap: "AIS gap", identity: "Identity anomaly",
+  anchor_drag: "Anchor drag", speed_anomaly: "Speed anomaly", route_deviation: "Route deviation",
+};
 
 const REGION_LABEL: Record<string, string> = { kr: "Korea", tw: "Taiwan", jp: "Japan" };
 
@@ -87,13 +90,44 @@ export function initEventFeed(): void {
   map.addLayer({ id: "track", type: "line", source: "track",
     paint: { "line-color": "#4cc3ff", "line-width": 2, "line-opacity": 0.7 } }, "vessels");
 
+  const chipsEl = document.getElementById("filter-chips")!;
+  const allTypes = ["All", "loitering", "ais_gap", "identity", "anchor_drag", "speed_anomaly", "route_deviation"];
+  let activeFilter: string | null = hashState.filter ?? null;
+
+  function renderChips(): void {
+    chipsEl.innerHTML = allTypes.map((t) => {
+      const label = t === "All" ? "All" : TYPE_LABEL[t] ?? t;
+      const isActive = (t === "All" && !activeFilter) || activeFilter === t;
+      return `<button data-type="${t}" class="${isActive ? "active" : ""}">${label}</button>`;
+    }).join("");
+  }
+
+  chipsEl.addEventListener("click", (e) => {
+    const btn = (e.target as HTMLElement).closest("button[data-type]") as HTMLElement | null;
+    if (!btn) return;
+    const type = btn.dataset.type!;
+    if (type === "All" || activeFilter === type) {
+      activeFilter = null;
+      hashState.filter = undefined;
+    } else {
+      activeFilter = type;
+      hashState.filter = type;
+    }
+    writeHash(hashState);
+    renderChips();
+    void poll();
+  });
+
+  renderChips();
+
   const list = document.getElementById("event-list")!;
   const poll = async () => {
     try {
       const f = getDayFilter();
       const since = f ? f.startTs : Date.now() - 24 * 3_600_000;
       const res = await fetchEvents(since, getRegion());
-      const events = f ? res.events.filter((e) => e.startTs < f.endTs) : res.events;
+      let events = f ? res.events.filter((e) => e.startTs < f.endTs) : res.events;
+      if (activeFilter) events = events.filter((e) => e.type === activeFilter);
       list.innerHTML = events.map(renderEvent).join("") ||
         `<li>${f ? `No events on ${f.day}` : "No events in the last 24 h"}</li>`;
     } catch (err) { console.error("event feed failed:", err); }

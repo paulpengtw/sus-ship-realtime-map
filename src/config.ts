@@ -44,6 +44,27 @@ export const CONFIG = {
   watchdogMs: 2 * 60 * 1000,
   backoffMinMs: 1000,
   backoffMaxMs: 60 * 1000,
+
+  // Speed anomaly detector (spec §5)
+  speedTypeMaxExceedCount: 3,
+  speedChangeThresholdKn: 5,
+  speedChangeMaxDtMs: 600_000,
+  speedChangeMinCount: 3,
+  speedAnomalyWindow: 20,
+  speedCooldownMs: 3_600_000,
+
+  // Route deviation detector (spec §6)
+  routeReversalMinDeg: 90,
+  routeReversalMaxDtMs: 900_000,
+  routeReversalMinCount: 2,
+  routeCircleMaxRatio: 0.3,
+  routeCircleMinPositions: 10,
+  routeCircleMinDistanceM: 200,
+  routeWindow: 15,
+  routeLaneDeviationCount: 5,
+  laneBufferM: 5000,
+  routeCooldownMs: 3_600_000,
+  routeLaneMinSogKn: 5,
 } as const;
 
 export type Config = typeof CONFIG;
