@@ -6,6 +6,6 @@
   "assets": { "directory": "web/dist", "binding": "ASSETS" },
   "durable_objects": { "bindings": [{ "name": "TRACKER", "class_name": "TrackerDO" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TrackerDO"] }],
-  "d1_databases": [{ "binding": "DB", "database_name": "cable-guard", "database_id": "REPLACE_ME_AFTER_wrangler_d1_create" }],
+  "d1_databases": [{ "binding": "DB", "database_name": "cable-guard", "database_id": "86476895-1444-4e57-93d6-7a142e8591b4" }],
   "triggers": { "crons": ["*/5 * * * *", "15 2 * * *"] }
 }
