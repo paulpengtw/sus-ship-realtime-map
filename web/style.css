@@ -39,6 +39,9 @@ html, body, #map { height: 100%; background: var(--bg); color: var(--text); }
 #dossier h2 { font-size: 18px; } #dossier h3 { font-size: 12px; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
 #dossier .score { font-size: 26px; font-weight: 700; }
 #dossier ul { list-style: none; font-size: 13px; } #dossier li { padding: 4px 0; border-bottom: 1px solid #ffffff10; }
+#gfw-note { color: var(--muted); font-size: 12px; margin-top: 10px; }
+#gfw-detail { font-size: 12px; margin-top: 6px; }
+#gfw-detail .gfw-src { color: var(--muted); }
 #attribution { position: absolute; bottom: 4px; left: 8px; z-index: 20; font-size: 11px; color: var(--muted); }
 #filter-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
 #filter-chips button {
@@ -94,6 +97,7 @@ html, body, #map { height: 100%; background: var(--bg); color: var(--text); }
 .swatch.zone { background: #8b96a533; border: 1px solid #8b96a5; }
 .swatch.gfw { width: 10px; flex-basis: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #b18cff; margin: 0 6px; background: transparent; }
 .swatch.track { height: 0; border-top: 2px solid var(--accent); }
+.swatch.gfw-track { height: 0; border-top: 2px dashed #b18cff; }
 .swatch.sus { background: transparent; border: 2px solid #ff2b2b; border-radius: 50%; }
 @media (max-width: 720px) { #legend { display: none; } }
 #event-list .corridor { display: block; color: var(--accent); font-size: 11px; }

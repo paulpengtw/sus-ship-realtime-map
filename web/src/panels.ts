@@ -1,6 +1,6 @@
 // web/src/panels.ts
 import type { GeoJSONSource } from "maplibre-gl";
-import { fetchEvents, fetchVessel, fetchVesselTrack, type ApiEvent } from "./api";
+import { fetchEvents, fetchVessel, fetchVesselTrack, type ApiEvent, type GfwBreadcrumb } from "./api";
 import { writeHash } from "./hash";
 import { hashState, map } from "./main";
 import { flagForMmsi } from "./mid";
@@ -8,6 +8,7 @@ import { getRegion, onRegionChange } from "./regions";
 import { shipTypeLabel } from "./shiptype";
 import { nearestCorridor } from "./cables";
 import { getDayFilter, onDayFilter } from "./timeline";
+import { getWindow, onWindowChange } from "./windows";
 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 const fmtTime = (ts: number) => new Date(ts).toISOString().replace("T", " ").slice(0, 16) + "Z";
@@ -17,6 +18,25 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 const REGION_LABEL: Record<string, string> = { kr: "Korea", tw: "Taiwan", jp: "Japan" };
+
+const CRUMB_LETTER: Record<string, string> = { port_visit: "P", gap: "G", loitering: "L", encounter: "E", fishing: "F" };
+const CRUMB_LABEL: Record<string, string> = { port_visit: "Port visit", gap: "AIS gap", loitering: "Loitering", encounter: "Encounter", fishing: "Fishing" };
+
+let selectedMmsi: number | null = null;
+const EMPTY_FC = { type: "FeatureCollection", features: [] } as any;
+
+function clearTrackSources(): void {
+  for (const id of ["track", "gfw-track", "gfw-crumbs"]) {
+    (map.getSource(id) as GeoJSONSource | undefined)?.setData(EMPTY_FC);
+  }
+}
+
+function showCrumbDetail(p: { type: string; startTs: number; endTs: number | null }): void {
+  const el = document.getElementById("gfw-detail");
+  if (!el) return;
+  el.innerHTML = `<b>${esc(CRUMB_LABEL[p.type] ?? p.type)}</b> — ${fmtTime(Number(p.startTs))}` +
+    `${p.endTs ? ` → ${fmtTime(Number(p.endTs))}` : " · open"} <span class="gfw-src">(GFW)</span>`;
+}
 
 function detectorBreakdown(events: ApiEvent[]): string {
   const byType = new Map<string, { count: number; last: number }>();
@@ -34,14 +54,16 @@ export function selectVessel(mmsi: number | null): void {
   const panel = document.getElementById("dossier")!;
   hashState.vessel = mmsi ?? undefined;
   writeHash(hashState);
+  selectedMmsi = mmsi;
 
   if (mmsi === null) {
     panel.hidden = true;
-    (map.getSource("track") as GeoJSONSource | undefined)?.setData({ type: "FeatureCollection", features: [] } as any);
+    clearTrackSources();
     return;
   }
 
-  void fetchVessel(mmsi).then((d) => {
+  void Promise.all([fetchVessel(mmsi), fetchVesselTrack(mmsi, getWindow())]).then(([d, t]) => {
+    if (selectedMmsi !== mmsi) return; // user selected another vessel while loading
     const body = document.getElementById("dossier-body")!;
     const identityEvents = d.events.filter((e) => e.type === "identity");
     const flag = flagForMmsi(d.vessel.mmsi);
@@ -60,19 +82,31 @@ export function selectVessel(mmsi: number | null): void {
       <h3>Identity history</h3>
       <ul>${identityEvents.length ? identityEvents.map((e) => `<li>${fmtTime(e.startTs)} — ${esc(JSON.stringify(e.evidence))}</li>`).join("") : "<li>No identity changes observed</li>"}</ul>
       <h3>Event timeline</h3>
-      <ul>${d.events.length ? d.events.map((e) => `<li>${fmtTime(e.startTs)} — ${TYPE_LABEL[e.type] ?? e.type} (sev ${e.severity})${e.endTs === null ? " · ongoing" : ""}</li>`).join("") : "<li>No events</li>"}</ul>`;
+      <ul>${d.events.length ? d.events.map((e) => `<li>${fmtTime(e.startTs)} — ${TYPE_LABEL[e.type] ?? e.type} (sev ${e.severity})${e.endTs === null ? " · ongoing" : ""}</li>`).join("") : "<li>No events</li>"}</ul>
+      <div id="gfw-note" ${t.gfwError ? "" : "hidden"}>Deep history unavailable — GFW fetch failed</div>
+      <div id="gfw-detail"></div>`;
     panel.hidden = false;
 
-    void fetchVesselTrack(mmsi, "month").then((t) => {   // "month" literal until Task 9 wires the window store
-      const track = map.getSource("track") as GeoJSONSource | undefined;
-      if (!track) return;
-      if (t.points.length > 1) {
-        track.setData({ type: "Feature", properties: {},
-          geometry: { type: "LineString", coordinates: t.points.map((p) => [p.lon, p.lat]) } } as any);
-      } else {
-        track.setData({ type: "FeatureCollection", features: [] } as any);
-      }
-    }).catch((err) => console.error("track failed:", err));
+    clearTrackSources();
+    const track = map.getSource("track") as GeoJSONSource | undefined;
+    if (track && t.points.length > 1) {
+      track.setData({ type: "Feature", properties: {},
+        geometry: { type: "LineString", coordinates: t.points.map((p) => [p.lon, p.lat]) } } as any);
+    }
+    const crumbs: GfwBreadcrumb[] = t.gfwEvents; // already ascending by startTs
+    (map.getSource("gfw-crumbs") as GeoJSONSource | undefined)?.setData({
+      type: "FeatureCollection",
+      features: crumbs.map((c) => ({
+        type: "Feature", geometry: { type: "Point", coordinates: [c.lon, c.lat] },
+        properties: { type: c.type, letter: CRUMB_LETTER[c.type] ?? "•", startTs: c.startTs, endTs: c.endTs },
+      })),
+    } as any);
+    if (crumbs.length > 1) {
+      (map.getSource("gfw-track") as GeoJSONSource | undefined)?.setData({
+        type: "Feature", properties: {},
+        geometry: { type: "LineString", coordinates: crumbs.map((c) => [c.lon, c.lat]) },
+      } as any);
+    }
   }).catch((err) => console.error("dossier failed:", err));
 }
 
@@ -91,6 +125,26 @@ export function initEventFeed(): void {
   map.addSource("track", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
   map.addLayer({ id: "track", type: "line", source: "track",
     paint: { "line-color": "#4cc3ff", "line-width": 2, "line-opacity": 0.7 } }, "vessels");
+
+  // GFW breadcrumb trail for the selected vessel: dashed connector + typed letter markers.
+  map.addSource("gfw-track", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  map.addSource("gfw-crumbs", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  map.addLayer({ id: "gfw-track", type: "line", source: "gfw-track",
+    paint: { "line-color": "#b18cff", "line-width": 1.5, "line-dasharray": [2, 2], "line-opacity": 0.8 } }, "vessels");
+  map.addLayer({ id: "gfw-crumb-dots", type: "circle", source: "gfw-crumbs",
+    paint: { "circle-radius": 8, "circle-color": "#0b1220", "circle-stroke-color": "#b18cff", "circle-stroke-width": 1.5 } });
+  map.addLayer({ id: "gfw-crumb-letters", type: "symbol", source: "gfw-crumbs",
+    layout: { "text-field": ["get", "letter"], "text-size": 10, "text-allow-overlap": true },
+    paint: { "text-color": "#b18cff" } });
+  map.on("click", "gfw-crumb-dots", (e) => {
+    const f = e.features?.[0];
+    if (f) showCrumbDetail(f.properties as any);
+  });
+  map.on("mouseenter", "gfw-crumb-dots", () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", "gfw-crumb-dots", () => { map.getCanvas().style.cursor = ""; });
+
+  // Window switch refetches the selected vessel's track at the new depth.
+  onWindowChange(() => { if (selectedMmsi !== null) selectVessel(selectedMmsi); });
 
   const chipsEl = document.getElementById("filter-chips")!;
   const allTypes = ["All", "loitering", "ais_gap", "identity", "anchor_drag", "speed_anomaly", "route_deviation"];
