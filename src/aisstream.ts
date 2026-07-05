@@ -36,7 +36,19 @@ export function parseAisStreamMessage(raw: unknown): { pos?: AisPosition; ident?
 
     if (r.MessageType === "ShipStaticData" && r.Message?.ShipStaticData) {
       const sd = r.Message.ShipStaticData;
-      return { ident: { mmsi, name: String(sd.Name ?? "").trim(), callsign: String(sd.CallSign ?? "").trim(), ts } };
+      const dim = sd.Dimension ?? {};
+      // AIS uses 0 as "not available" for type and dimensions.
+      const posInt = (v: unknown) => { const n = Number(v); return Number.isInteger(n) && n > 0 ? n : null; };
+      return { ident: {
+        mmsi,
+        name: String(sd.Name ?? "").trim(),
+        callsign: String(sd.CallSign ?? "").trim(),
+        ts,
+        shipType: posInt(sd.Type),
+        destination: String(sd.Destination ?? "").trim() || null,
+        dimBow: posInt(dim.A), dimStern: posInt(dim.B),
+        dimPort: posInt(dim.C), dimStarboard: posInt(dim.D),
+      } };
     }
 
     return null;
