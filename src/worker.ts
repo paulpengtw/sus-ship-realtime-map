@@ -24,8 +24,15 @@ function ensureTracker(env: Env, ctx: ExecutionContext): void {
 const rowToEvent = (r: any) => ({
   id: r.id, type: r.type, severity: r.severity, mmsi: r.mmsi,
   lon: r.lon, lat: r.lat, startTs: r.start_ts, endTs: r.end_ts,
+  region: r.region ?? null,
   evidence: JSON.parse(r.evidence ?? "{}"),
 });
+
+function regionParam(url: URL): string | null {
+  const r = url.searchParams.get("region");
+  if (r === null) return "";
+  return CONFIG.regions.some((x) => x.id === r) ? r : null;
+}
 
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -36,9 +43,13 @@ export default {
     const now = Date.now();
 
     if (url.pathname === "/api/snapshot") {
-      const { results } = await env.DB.prepare(
-        `SELECT * FROM vessels WHERE last_ts >= ?1 ORDER BY score DESC`,
-      ).bind(now - CONFIG.snapshotWindowMs).all<any>();
+      const region = regionParam(url);
+      if (region === null) return json({ error: "bad region" }, 400);
+      const { results } = region
+        ? await env.DB.prepare(`SELECT * FROM vessels WHERE last_ts >= ?1 AND region = ?2 ORDER BY score DESC`)
+            .bind(now - CONFIG.snapshotWindowMs, region).all<any>()
+        : await env.DB.prepare(`SELECT * FROM vessels WHERE last_ts >= ?1 ORDER BY score DESC`)
+            .bind(now - CONFIG.snapshotWindowMs).all<any>();
       const newestTs = results.reduce((m, r) => Math.max(m, r.last_ts), 0);
       return json({
         generatedAt: now,
@@ -52,6 +63,7 @@ export default {
               mmsi: r.mmsi, name: r.name, sog: r.last_sog, cog: r.last_cog,
               score: Math.round(decayedScore(r.score, r.score_ts, now, CONFIG.scoreHalfLifeMs) * 10) / 10,
               lastTs: r.last_ts,
+              region: r.region ?? null, shipType: r.ship_type ?? null,
             },
           })),
         },
@@ -59,11 +71,47 @@ export default {
     }
 
     if (url.pathname === "/api/events") {
+      const region = regionParam(url);
+      if (region === null) return json({ error: "bad region" }, 400);
       const since = Number(url.searchParams.get("since") ?? 0);
-      const { results } = await env.DB.prepare(
-        `SELECT * FROM events WHERE start_ts >= ?1 ORDER BY start_ts DESC LIMIT 200`,
-      ).bind(Number.isFinite(since) ? since : 0).all<any>();
+      const limit = Math.min(Math.max(Math.trunc(Number(url.searchParams.get("limit")) || 200), 1), 1000);
+      const { results } = region
+        ? await env.DB.prepare(`SELECT * FROM events WHERE start_ts >= ?1 AND region = ?2 ORDER BY start_ts DESC LIMIT ?3`)
+            .bind(Number.isFinite(since) ? since : 0, region, limit).all<any>()
+        : await env.DB.prepare(`SELECT * FROM events WHERE start_ts >= ?1 ORDER BY start_ts DESC LIMIT ?2`)
+            .bind(Number.isFinite(since) ? since : 0, limit).all<any>();
       return json({ generatedAt: now, events: results.map(rowToEvent) });
+    }
+
+    if (url.pathname === "/api/stats") {
+      const DAY = 86_400_000;
+      const [vc, ac, e24, hist] = await env.DB.batch([
+        env.DB.prepare(`SELECT region, COUNT(*) AS c FROM vessels WHERE last_ts >= ?1 AND region IS NOT NULL GROUP BY region`)
+          .bind(now - CONFIG.snapshotWindowMs),
+        env.DB.prepare(`SELECT region, COUNT(*) AS c FROM events WHERE end_ts IS NULL AND region IS NOT NULL GROUP BY region`),
+        env.DB.prepare(`SELECT region, COUNT(*) AS c FROM events WHERE start_ts >= ?1 AND region IS NOT NULL GROUP BY region`)
+          .bind(now - DAY),
+        env.DB.prepare(`SELECT region, severity, date(start_ts / 1000, 'unixepoch') AS d, COUNT(*) AS c
+                        FROM events WHERE start_ts >= ?1 AND region IS NOT NULL GROUP BY region, severity, d`)
+          .bind(now - 13 * DAY - (now % DAY)),
+      ]);
+      const regions: Record<string, { vessels: number; activeAlerts: number; events24h: number }> = {};
+      const histogram: Record<string, { day: string; counts: number[] }[]> = {};
+      for (const r of CONFIG.regions) {
+        regions[r.id] = { vessels: 0, activeAlerts: 0, events24h: 0 };
+        histogram[r.id] = Array.from({ length: 14 }, (_, i) => ({
+          day: new Date(now - (13 - i) * DAY).toISOString().slice(0, 10),
+          counts: [0, 0, 0, 0, 0],
+        }));
+      }
+      for (const row of vc.results as any[]) if (regions[row.region]) regions[row.region].vessels = row.c;
+      for (const row of ac.results as any[]) if (regions[row.region]) regions[row.region].activeAlerts = row.c;
+      for (const row of e24.results as any[]) if (regions[row.region]) regions[row.region].events24h = row.c;
+      for (const row of hist.results as any[]) {
+        const bucket = histogram[row.region]?.find((b) => b.day === row.d);
+        if (bucket) bucket.counts[row.severity - 1] = row.c;
+      }
+      return json({ generatedAt: now, regions, histogram });
     }
 
     if (url.pathname === "/api/gfw") {
@@ -91,6 +139,10 @@ export default {
           mmsi: vessel.mmsi, name: vessel.name, callsign: vessel.callsign,
           lon: vessel.last_lon, lat: vessel.last_lat, sog: vessel.last_sog, cog: vessel.last_cog, lastTs: vessel.last_ts,
           score: Math.round(decayedScore(vessel.score, vessel.score_ts, now, CONFIG.scoreHalfLifeMs) * 10) / 10,
+          region: vessel.region ?? null, shipType: vessel.ship_type ?? null,
+          destination: vessel.destination ?? null,
+          dimBow: vessel.dim_bow ?? null, dimStern: vessel.dim_stern ?? null,
+          dimPort: vessel.dim_port ?? null, dimStarboard: vessel.dim_starboard ?? null,
         },
         track: track.results.reverse(),
         events: events.results.map(rowToEvent),
