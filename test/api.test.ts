@@ -8,11 +8,14 @@ async function seed() {
   await env.DB.batch([
     env.DB.prepare("DELETE FROM vessels"), env.DB.prepare("DELETE FROM positions"),
     env.DB.prepare("DELETE FROM events"), env.DB.prepare("DELETE FROM gfw_events"),
-    env.DB.prepare(`INSERT INTO vessels VALUES (412000001, 'TEST SHIP', 'BXYZ1', 120.2, 22.0, 0.5, 90, ?1, 6.5, ?1)`).bind(T0),
-    env.DB.prepare(`INSERT INTO vessels VALUES (412000002, 'OLD SHIP', NULL, 121.0, 23.0, 5, 0, ?1, 0, ?1)`).bind(T0 - 2 * 3_600_000),
+    env.DB.prepare(`INSERT INTO vessels (mmsi, name, callsign, last_lon, last_lat, last_sog, last_cog, last_ts, score, score_ts)
+                    VALUES (412000001, 'TEST SHIP', 'BXYZ1', 120.2, 22.0, 0.5, 90, ?1, 6.5, ?1)`).bind(T0),
+    env.DB.prepare(`INSERT INTO vessels (mmsi, name, callsign, last_lon, last_lat, last_sog, last_cog, last_ts, score, score_ts)
+                    VALUES (412000002, 'OLD SHIP', NULL, 121.0, 23.0, 5, 0, ?1, 0, ?1)`).bind(T0 - 2 * 3_600_000),
     env.DB.prepare(`INSERT INTO positions VALUES (412000001, ?1, 120.19, 21.99, 1, 88)`).bind(T0 - 60_000),
     env.DB.prepare(`INSERT INTO positions VALUES (412000001, ?1, 120.2, 22.0, 0.5, 90)`).bind(T0),
-    env.DB.prepare(`INSERT INTO events VALUES ('loitering-412000001-1', 'loitering', 3, 412000001, 120.2, 22.0, ?1, NULL, '{"corridor":"C1"}')`).bind(T0),
+    env.DB.prepare(`INSERT INTO events (id, type, severity, mmsi, lon, lat, start_ts, end_ts, evidence)
+                    VALUES ('loitering-412000001-1', 'loitering', 3, 412000001, 120.2, 22.0, ?1, NULL, '{"corridor":"C1"}')`).bind(T0),
     env.DB.prepare(`INSERT INTO gfw_events VALUES ('gfw-1', 'gap', 412000001, 120.3, 22.1, ?1, ?2, '{}')`).bind(T0 - 3_600_000, T0),
   ]);
 }

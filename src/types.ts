@@ -1,4 +1,5 @@
 // src/types.ts
+import type { RegionId } from "./config";
 export interface AisPosition {
   mmsi: number;
   lon: number;
@@ -14,6 +15,12 @@ export interface AisIdentity {
   name: string;
   callsign: string;
   ts: number;
+  shipType?: number | null;
+  destination?: string | null;
+  dimBow?: number | null;
+  dimStern?: number | null;
+  dimPort?: number | null;
+  dimStarboard?: number | null;
 }
 
 export type EventType = "loitering" | "ais_gap" | "identity" | "anchor_drag";
@@ -29,12 +36,20 @@ export interface AnomalyEvent {
   startTs: number;
   endTs: number | null;
   evidence: Record<string, unknown>;
+  region?: RegionId | null;
 }
 
 export interface VesselState {
   mmsi: number;
   name: string | null;
   callsign: string | null;
+  region: RegionId | null;
+  shipType: number | null;
+  destination: string | null;
+  dimBow: number | null;
+  dimStern: number | null;
+  dimPort: number | null;
+  dimStarboard: number | null;
   ring: AisPosition[];
   identities: AisIdentity[];
   lastSeen: number;
@@ -49,6 +64,8 @@ export interface VesselState {
 export function newVesselState(mmsi: number, now: number): VesselState {
   return {
     mmsi, name: null, callsign: null,
+    region: null, shipType: null, destination: null,
+    dimBow: null, dimStern: null, dimPort: null, dimStarboard: null,
     ring: [], identities: [],
     lastSeen: now,
     loiterStart: null, loiterReported: false,
