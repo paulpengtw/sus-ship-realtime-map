@@ -75,7 +75,7 @@ If `s.shipType` is known and the vessel's SOG exceeds its type's max for `speedT
 
 ### 5b. Repeated sudden speed changes
 
-Scan the ring buffer for "significant speed change" events: absolute SOG delta > `speedChangeThresholdKn` (default: 5 kn) between consecutive positions where dt < 10 minutes (so it's a genuine maneuver, not "vessel sailed for hours then stopped").
+Scan the ring buffer for "significant speed change" events: absolute SOG delta > `speedChangeThresholdKn` (default: 5 kn) between consecutive positions where dt < `speedChangeMaxDtMs` (default: 10 minutes) (so it's a genuine maneuver, not "vessel sailed for hours then stopped").
 
 If `speedChangeMinCount` (default: 3) or more such changes occur within the last `speedAnomalyWindow` (default: 20) ring positions, fire a `"speed_anomaly"` event.
 
@@ -91,6 +91,7 @@ If `speedChangeMinCount` (default: 3) or more such changes occur within the last
 ```
 speedTypeMaxExceedCount: 3
 speedChangeThresholdKn: 5
+speedChangeMaxDtMs: 600_000
 speedChangeMinCount: 3
 speedAnomalyWindow: 20
 speedCooldownMs: 3_600_000
@@ -102,7 +103,7 @@ Pure function: `routeOnMessage(s: VesselState, msg: AisPosition, geo: GeoContext
 
 ### 6a. Course reversals
 
-COG change > `routeReversalMinDeg` (default: 90 degrees) between consecutive positions where dt < 15 minutes. If `routeReversalMinCount` (default: 2) or more reversals occur within the last `routeWindow` (default: 15) ring positions, fire a `"route_deviation"` event.
+COG change > `routeReversalMinDeg` (default: 90 degrees) between consecutive positions where dt < `routeReversalMaxDtMs` (default: 15 minutes). If `routeReversalMinCount` (default: 2) or more reversals occur within the last `routeWindow` (default: 15) ring positions, fire a `"route_deviation"` event.
 
 - Severity 3 base; boosted to 4 if inside a cable corridor.
 - Evidence: `{ kind: "course_reversals", reversalCount, windowSize }`.
@@ -143,6 +144,7 @@ Then fire a `"route_deviation"` event.
 
 ```
 routeReversalMinDeg: 90
+routeReversalMaxDtMs: 900_000
 routeReversalMinCount: 2
 routeCircleMaxRatio: 0.3
 routeCircleMinPositions: 10
