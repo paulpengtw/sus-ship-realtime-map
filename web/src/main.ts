@@ -8,6 +8,7 @@ import { getRegion, regionDef } from "./regions";
 import { initRegionSwitcher } from "./switcher";
 import { loadCables } from "./cables";
 import { initStatsBar } from "./stats";
+import { initTimeline } from "./timeline";
 
 export const hashState: HashState = readHash();
 
@@ -47,6 +48,7 @@ map.on("load", () => {
   initEventFeed();
   initRegionSwitcher();
   initStatsBar();
+  initTimeline();
   if (hashState.vessel) selectVessel(hashState.vessel);
 });
 

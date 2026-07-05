@@ -67,3 +67,9 @@ html, body, #map { height: 100%; background: var(--bg); color: var(--text); }
 .swatch.track { height: 0; border-top: 2px solid var(--accent); }
 @media (max-width: 720px) { #legend { display: none; } }
 #event-list .corridor { display: block; color: var(--accent); font-size: 11px; }
+#timeline { margin-bottom: 8px; }
+#timeline svg { display: block; width: 100%; height: 44px; }
+#timeline rect.day-hit { fill: transparent; cursor: pointer; }
+#timeline rect.day-hit:hover { fill: #ffffff14; }
+#timeline rect.selected-outline { fill: none; stroke: var(--accent); stroke-width: 1; }
+#timeline .tl-caption { font-size: 10px; color: var(--muted); display: flex; justify-content: space-between; }

@@ -28,7 +28,7 @@ export function initStatsBar(): void {
       for (const fn of listeners) fn(last);
     } catch (err) { console.error("stats failed:", err); }
   };
-  onRegionChange(render);
+  onRegionChange(() => { render(); if (last) for (const fn of listeners) fn(last); });
   void poll();
   setInterval(poll, 30_000);
 }
