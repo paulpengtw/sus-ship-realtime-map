@@ -49,7 +49,7 @@ export function routeOnMessage(s: VesselState, msg: AisPosition, geo: GeoContext
 
   // 6b: circling
   if (window.length >= cfg.routeCircleMinPositions) {
-    const circleWindow = window;
+    const circleWindow = window.slice(-cfg.routeCircleMinPositions);
     const first = circleWindow[0];
     const last = circleWindow[circleWindow.length - 1];
     const displacement = haversineM([first.lon, first.lat], [last.lon, last.lat]);
@@ -79,7 +79,7 @@ export function routeOnMessage(s: VesselState, msg: AisPosition, geo: GeoContext
     const tail = window.slice(-cfg.routeLaneDeviationCount);
     const allOutOfLane = tail.every((w) => {
       const wp: LngLat = [w.lon, w.lat];
-      return !geo.inLane(wp) && !geo.inExclusion(wp) && w.sog > 5;
+      return !geo.inLane(wp) && !geo.inExclusion(wp) && w.sog > cfg.routeLaneMinSogKn;
     });
     if (allOutOfLane) {
       const nearestLane = geo.nearestLane(p);

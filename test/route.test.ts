@@ -56,11 +56,12 @@ describe("route deviation detector", () => {
   it("vessel circling (low displacement/distance ratio) fires circling", () => {
     const s = newVesselState(3, T0);
     const geo = makeGeo();
-    // Create a circle: 12 positions around a point, each ~333m apart
+    // Create a circle: 10 positions around a point, each ~333m apart, closing
+    // within the 10-position circling window (routeCircleMinPositions).
     const cx = 120.3, cy = 22.5, r = 0.003; // ~333m radius
-    const positions = Array.from({ length: 12 }, (_, i) => {
-      const angle = (i / 12) * 2 * Math.PI;
-      return pos(3, cx + r * Math.cos(angle), cy + r * Math.sin(angle), 3, (i * 30) % 360, i * 5);
+    const positions = Array.from({ length: 10 }, (_, i) => {
+      const angle = (i / 10) * 2 * Math.PI;
+      return pos(3, cx + r * Math.cos(angle), cy + r * Math.sin(angle), 3, (i * 36) % 360, i * 5);
     });
     const evs = feedPositions(s, positions, geo);
     const circling = evs.filter((e: any) => e.evidence?.kind === "circling");

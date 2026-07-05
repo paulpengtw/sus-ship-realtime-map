@@ -44,6 +44,7 @@ export const CONFIG = {
   routeLaneDeviationCount: 5,
   laneBufferM: 5000,
   routeCooldownMs: 3_600_000,
+  routeLaneMinSogKn: 5,
 } as const;
 
 export type Config = typeof CONFIG;
