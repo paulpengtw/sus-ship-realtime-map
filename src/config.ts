@@ -1,6 +1,27 @@
 // src/config.ts — ALL tunable thresholds live here (spec §3).
+export type RegionId = "kr" | "tw" | "jp";
+export interface Region {
+  id: RegionId;
+  name: string;
+  bbox: { minLon: number; minLat: number; maxLon: number; maxLat: number };
+  center: [number, number]; // [lon, lat]
+  zoom: number;
+}
+
 export const CONFIG = {
   bbox: { minLon: 118.0, minLat: 21.0, maxLon: 124.5, maxLat: 26.5 },
+  // Order matters: region tagging is first-match-wins (spec §1).
+  regions: [
+    { id: "kr", name: "Korea",
+      bbox: { minLon: 124.5, minLat: 33.0, maxLon: 130.0, maxLat: 37.0 }, // Busan/Geoje approaches + Yellow Sea corridors
+      center: [127.5, 35.0], zoom: 6.3 },
+    { id: "tw", name: "Taiwan",
+      bbox: { minLon: 118.0, minLat: 21.0, maxLon: 124.5, maxLat: 26.5 },
+      center: [120.9, 23.7], zoom: 6.3 },
+    { id: "jp", name: "Japan",
+      bbox: { minLon: 130.0, minLat: 32.5, maxLon: 141.5, maxLat: 36.9 }, // Kyushu strait → Shima/Chikura/Kitaibaraki landings
+      center: [135.5, 34.5], zoom: 5.8 },
+  ] as Region[],
   corridorBufferM: 1000,
   loiterMaxSogKn: 2,
   loiterMinMs: 2 * 60 * 60 * 1000,
