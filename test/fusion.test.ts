@@ -85,6 +85,17 @@ describe("fusion scoring and assessment lifecycle (open/update)", () => {
     expect(s.assessments.cable_interference!.evidence).toHaveLength(before);
   });
 
+  it("a re-emitted loitering event (open then close, same id) contributes score only once", () => {
+    const s = newVesselState(7, T0);
+    applyEventToFusion(s, loiterEv("dup"), geo, CONFIG, T0); // open
+    const scoreAfterFirst = s.categories.cable_interference.score;
+    applyEventToFusion(s, loiterEv("dup"), geo, CONFIG, T0); // close, same event id, same instant
+    expect(s.categories.cable_interference.score).toBeCloseTo(scoreAfterFirst, 5);
+    expect(s.categories.cable_interference.score).toBeCloseTo(0.45, 2);
+    expect(s.categories.cable_interference.recent).toHaveLength(1);
+    expect(s.categories.cable_interference.recent[0].weight).toBeCloseTo(0.45, 2);
+  });
+
   it("score decays with the configured half-life between contributions", () => {
     // NOTE: decay is applied lazily, at contribution time — so the second event must
     // touch the SAME category to observe the decay in the stored score.

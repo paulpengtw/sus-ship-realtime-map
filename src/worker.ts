@@ -112,7 +112,7 @@ export default {
           SELECT mmsi, MAX(confidence) AS max_conf,
                  (SELECT a2.category FROM assessments a2
                   WHERE a2.mmsi = a.mmsi AND a2.status = 'open'
-                  ORDER BY a2.confidence DESC LIMIT 1) AS top_category
+                  ORDER BY a2.confidence DESC, a2.category LIMIT 1) AS top_category
           FROM assessments a WHERE a.status = 'open' GROUP BY a.mmsi
         ) a ON a.mmsi = v.mmsi`;
       const { results } = region

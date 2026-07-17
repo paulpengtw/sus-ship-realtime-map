@@ -52,6 +52,16 @@ export class TrackerDO implements DurableObject {
         cs.score = a.confidence * 2; // inverse of confidenceFor; damping state resets on restart (accepted)
         cs.ts = a.updatedTs;
       }
+      // Accepted fail-conservative losses on DO restart (only open assessments and
+      // recent positions are rehydrated above):
+      //  (a) pre-open category scores — those below assessmentOpenScore, with no
+      //      assessments row to persist them — are not recoverable and reset to 0.
+      //      A vessel that was quietly accumulating evidence toward opening an
+      //      assessment loses that progress and starts over.
+      //  (b) hydrated vessels restart with an empty or 1-fix position ring (only
+      //      loadRecentVesselStates' latest fixes are restored, not the full ring),
+      //      so the gap-detector cadence gate suppresses ais_gap detection until
+      //      enough fresh fixes accumulate post-restart to re-establish cadence.
     }
     if ((await this.ctx.storage.getAlarm()) === null) {
       await this.ctx.storage.setAlarm(Date.now() + CONFIG.alarmIntervalMs);

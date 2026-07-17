@@ -95,9 +95,13 @@ function narrativeFrom(evidence: EvidenceRef[]): string {
   return joined ? joined.charAt(0).toUpperCase() + joined.slice(1) + "." : "";
 }
 
+// Evidence refs are keyed by eventId: at most one ref per event per category. Duplicates
+// (from upsertEvidence's own dedup, or from copying cs.recent into a freshly-opened
+// assessment) replace in place rather than summing weight — see the one-contribution
+// guard in applyEventToFusion, which is the actual source of truth for "already scored."
 function upsertEvidence(list: EvidenceRef[], ref: EvidenceRef): void {
   const i = list.findIndex((r) => r.eventId === ref.eventId);
-  if (i >= 0) list[i] = { ...ref, weight: list[i].weight + ref.weight };
+  if (i >= 0) list[i] = ref;
   else list.push(ref);
 }
 
@@ -105,6 +109,26 @@ export function applyEventToFusion(s: VesselState, ev: AnomalyEvent, geo: GeoCon
   const changed: ThreatAssessment[] = [];
   for (const { category, cls, summary } of signalsFor(ev, s, geo, cfg)) {
     const cs: CategoryState = s.categories[category];
+    const openA = s.assessments[category];
+    // One score contribution per event id. Some detectors re-emit the same event id as
+    // its facts firm up (e.g. loitering opens with endTs null, then re-emits on close) —
+    // that re-emission must refresh the evidence text without adding weight a second time.
+    const existingRef = (openA ? openA.evidence : cs.recent).find((r) => r.eventId === ev.id);
+    if (existingRef) {
+      existingRef.summary = summary;
+      existingRef.ts = now;
+      if (openA) {
+        openA.narrative = narrativeFrom(openA.evidence);
+        openA.updatedTs = now;
+        openA.region = s.region ?? openA.region;
+        openA.lastLon = ev.lon;
+        openA.lastLat = ev.lat;
+        openA.confidence = confidenceFor(decayedScore(cs.score, cs.ts, now, cfg.scoreHalfLifeMs));
+        changed.push(openA);
+      }
+      continue;
+    }
+
     cs.score = decayedScore(cs.score, cs.ts, now, cfg.scoreHalfLifeMs);
     const key = `${ev.type}:${String((ev.evidence as Record<string, unknown>).kind ?? "")}`;
     const damped = cs.contributed[key] !== undefined && now - cs.contributed[key] < cfg.scoreHalfLifeMs;
