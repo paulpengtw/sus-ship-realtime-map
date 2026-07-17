@@ -22,6 +22,7 @@ export const CONFIG = {
       center: [135.5, 34.5], zoom: 5.8 },
   ] as Region[],
   corridorBufferM: 1000,
+  stationaryMaxSogKn: 0.5,
   loiterMaxSogKn: 2,
   loiterMinMs: 2 * 60 * 60 * 1000,
   gapMinMs: 60 * 60 * 1000,
