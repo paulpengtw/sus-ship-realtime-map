@@ -31,8 +31,8 @@ describe("pipeline region tagging", () => {
 
   it("stamps region onto tick (gap) events", () => {
     const t = new Tracker(geo, CONFIG);
-    t.handlePosition(pos(3, 121.5, 24.9, 0)); // tw
-    const evs = t.tick(T0 + 90 * 60_000);
+    for (let m = 0; m <= 40; m += 10) t.handlePosition(pos(3, 121.5, 24.9, m)); // tw
+    const evs = t.tick(T0 + (40 + 90) * 60_000);
     expect(evs).toHaveLength(1);
     expect(evs[0].region).toBe("tw");
   });

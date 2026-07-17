@@ -13,8 +13,10 @@ const HOUR = 3_600_000;
 
 function seed(mmsi: number, lon: number, lat: number) {
   const s = newVesselState(mmsi, T0);
-  const p: AisPosition = { mmsi, lon, lat, sog: 5, cog: 90, heading: 90, ts: T0 };
-  s.ring.push(p); s.lastSeen = T0;
+  for (let i = 4; i >= 0; i--) {
+    s.ring.push({ mmsi, lon, lat, sog: 5, cog: 90, heading: 90, ts: T0 - i * 10 * 60_000 });
+  }
+  s.lastSeen = T0;
   return s;
 }
 
@@ -58,5 +60,34 @@ describe("AIS gap detector", () => {
     const s = seed(5, 120.5, 22.0);
     const p: AisPosition = { mmsi: 5, lon: 120.51, lat: 22.0, sog: 5, cog: 90, heading: 90, ts: T0 + 60_000 };
     expect(gapOnMessage(s, p, geo, CONFIG)).toHaveLength(0);
+  });
+
+  it("does NOT open for a moored vessel (navStatus 5)", () => {
+    const s = seed(6, 120.5, 22.0);
+    for (const p of s.ring) p.navStatus = 5;
+    expect(gapOnTick(s, geo, CONFIG, T0 + 2 * HOUR)).toHaveLength(0);
+  });
+
+  it("does NOT open near the outer coverage edge; marks leftCoverage", () => {
+    const s = seed(7, 118.05, 22.0); // ~5 km from tw minLon 118.0
+    expect(gapOnTick(s, geo, CONFIG, T0 + 2 * HOUR)).toHaveLength(0);
+    expect(s.leftCoverage).toBe(true);
+  });
+
+  it("does NOT open when prior cadence was sparse (reception was already bad)", () => {
+    const s = newVesselState(8, T0);
+    s.ring.push({ mmsi: 8, lon: 120.5, lat: 22.0, sog: 5, cog: 90, heading: 90, ts: T0 - 2 * HOUR });
+    s.ring.push({ mmsi: 8, lon: 120.5, lat: 22.0, sog: 5, cog: 90, heading: 90, ts: T0 });
+    s.lastSeen = T0;
+    expect(gapOnTick(s, geo, CONFIG, T0 + 2 * HOUR)).toHaveLength(0);
+  });
+
+  it("does NOT open when the last fix was inside an exclusion zone", () => {
+    const exclGeo = new GeoContext(cables as any, {
+      type: "FeatureCollection",
+      features: [{ type: "Feature", properties: { name: "PORT" }, geometry: { type: "Polygon", coordinates: [[[120.4, 21.9], [120.6, 21.9], [120.6, 22.1], [120.4, 22.1], [120.4, 21.9]]] } }],
+    } as any, 1000);
+    const s = seed(9, 120.5, 22.0);
+    expect(gapOnTick(s, exclGeo, CONFIG, T0 + 2 * HOUR)).toHaveLength(0);
   });
 });

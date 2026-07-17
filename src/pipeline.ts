@@ -31,6 +31,7 @@ export class Tracker {
 
   handlePosition(msg: AisPosition): AnomalyEvent[] {
     const s = this.state(msg.mmsi, msg.ts);
+    s.leftCoverage = false;
     const events: AnomalyEvent[] = [];
 
     if (s.gapOpenSince !== null) {
