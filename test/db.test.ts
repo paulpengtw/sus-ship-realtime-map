@@ -9,7 +9,9 @@ const T0 = 1_750_000_000_000;
 function samplePending() {
   const p = newPendingWrites();
   const s = newVesselState(412000001, T0);
-  s.name = "TEST SHIP"; s.callsign = "BXYZ1"; s.score = 6.5; s.scoreTs = T0;
+  s.name = "TEST SHIP"; s.callsign = "BXYZ1";
+  s.categories.cable_interference.score = 6.5;
+  s.categories.cable_interference.ts = T0;
   s.ring.push({ mmsi: 412000001, lon: 120.2, lat: 22.0, sog: 0.5, cog: 90, heading: 90, ts: T0 });
   s.lastSeen = T0;
   p.vessels.set(s.mmsi, s);
@@ -51,6 +53,5 @@ describe("db persistence", () => {
     expect(states[0].mmsi).toBe(412000001);
     expect(states[0].ring).toHaveLength(1);
     expect(states[0].ring[0].lon).toBeCloseTo(120.2);
-    expect(states[0].score).toBeCloseTo(6.5);
   });
 });

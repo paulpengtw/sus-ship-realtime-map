@@ -1,11 +1,11 @@
 // src/do/tracker.ts — websocket lifecycle, alarms, batching. Logic lives in pipeline.ts.
 import { CONFIG } from "../config";
-import { flushWrites, loadRecentVesselStates, newPendingWrites, thinPositions, type PendingWrites } from "../db";
+import { flushWrites, loadOpenAssessments, loadRecentVesselStates, newPendingWrites, thinPositions, type PendingWrites } from "../db";
 import { GeoContext } from "../geo/context";
 import { Tracker } from "../pipeline";
 import { parseFrame } from "../aisstream";
 import { haversineM } from "../geo/geo";
-import type { AisPosition } from "../types";
+import { newVesselState, type AisPosition } from "../types";
 import type { Env } from "../worker";
 
 export class TrackerDO implements DurableObject {
@@ -39,6 +39,19 @@ export class TrackerDO implements DurableObject {
       this.hydrated = true;
       const states = await loadRecentVesselStates(this.env.DB, Date.now() - 6 * 3_600_000);
       for (const s of states) this.tracker.states.set(s.mmsi, s);
+
+      const open = await loadOpenAssessments(this.env.DB);
+      for (const a of open) {
+        let s = this.tracker.states.get(a.mmsi);
+        if (!s) {
+          s = newVesselState(a.mmsi, a.updatedTs);
+          this.tracker.states.set(a.mmsi, s);
+        }
+        s.assessments[a.category] = a;
+        const cs = s.categories[a.category];
+        cs.score = a.confidence * 2; // inverse of confidenceFor; damping state resets on restart (accepted)
+        cs.ts = a.updatedTs;
+      }
     }
     if ((await this.ctx.storage.getAlarm()) === null) {
       await this.ctx.storage.setAlarm(Date.now() + CONFIG.alarmIntervalMs);
@@ -125,8 +138,10 @@ export class TrackerDO implements DurableObject {
     this.pending.events.push(...events);
     for (const ev of events) this.pending.vessels.set(ev.mmsi, this.tracker.states.get(ev.mmsi)!);
 
+    for (const a of this.tracker.drainChangedAssessments()) this.pending.assessments.set(a.id, a);
+
     // 3. Flush batched writes; on failure keep pending and retry next tick (spec §6).
-    if (this.pending.events.length || this.pending.positions.length || this.pending.vessels.size) {
+    if (this.pending.events.length || this.pending.positions.length || this.pending.vessels.size || this.pending.assessments.size) {
       const batch = this.pending;
       try {
         await flushWrites(this.env.DB, batch);
