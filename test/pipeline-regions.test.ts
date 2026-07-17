@@ -46,7 +46,7 @@ describe("pipeline region tagging", () => {
     expect(s.destination).toBe("ULSAN");
     expect(s.dimBow).toBe(200);
     // a later static message without extras must not wipe known values
-    t.handleStatic({ mmsi: 4, name: "A", callsign: "DS1", ts: T0 + 1000 });
+    t.handleStatic({ mmsi: 4, name: "A", callsign: "DS1", shipType: null, ts: T0 + 1000 });
     expect(t.states.get(4)!.shipType).toBe(80);
   });
 });

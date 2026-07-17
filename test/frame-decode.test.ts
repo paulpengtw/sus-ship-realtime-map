@@ -10,32 +10,32 @@ const POSITION_MSG = {
 const JSON_TEXT = JSON.stringify(POSITION_MSG);
 
 describe("parseFrame", () => {
-  it("parses a string frame", () => {
-    const r = parseFrame(JSON_TEXT);
+  it("parses a string frame", async () => {
+    const r = await parseFrame(JSON_TEXT);
     expect(r.kind).toBe("ok");
     expect(r.kind === "ok" && r.pos?.mmsi).toBe(412000001);
   });
 
-  it("parses an ArrayBuffer frame (aisstream sends binary)", () => {
+  it("parses an ArrayBuffer frame (aisstream sends binary)", async () => {
     const buf = new TextEncoder().encode(JSON_TEXT).buffer as ArrayBuffer;
-    const r = parseFrame(buf);
+    const r = await parseFrame(buf);
     expect(r.kind).toBe("ok");
     expect(r.kind === "ok" && r.pos?.mmsi).toBe(412000001);
   });
 
-  it("parses a Uint8Array view frame", () => {
-    const r = parseFrame(new TextEncoder().encode(JSON_TEXT));
+  it("parses a Uint8Array view frame", async () => {
+    const r = await parseFrame(new TextEncoder().encode(JSON_TEXT));
     expect(r.kind).toBe("ok");
   });
 
-  it("counts garbage as a parse error without throwing", () => {
-    expect(parseFrame("not json").kind).toBe("error");
-    expect(parseFrame(new Uint8Array([0xff, 0x00, 0x01]).buffer).kind).toBe("error");
-    expect(parseFrame(12345).kind).toBe("error");
+  it("counts garbage as a parse error without throwing", async () => {
+    expect((await parseFrame("not json")).kind).toBe("error");
+    expect((await parseFrame(new Uint8Array([0xff, 0x00, 0x01]).buffer)).kind).toBe("error");
+    expect((await parseFrame(12345)).kind).toBe("error");
   });
 
-  it("treats valid-but-irrelevant JSON as ignored, not an error", () => {
-    expect(parseFrame('{"error":"Api Key Is Not Valid"}').kind).toBe("ignored");
+  it("treats valid-but-irrelevant JSON as ignored, not an error", async () => {
+    expect((await parseFrame('{"error":"Api Key Is Not Valid"}')).kind).toBe("ignored");
   });
 
   it("parses a Blob frame (Cloudflare Workers sends Blob)", async () => {
