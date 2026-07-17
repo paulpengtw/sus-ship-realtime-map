@@ -54,8 +54,7 @@ export const CONFIG = {
   ],
   snapshotWindowMs: 60 * 60 * 1000,
   // Trajectories (spec §2)
-  susScoreThreshold: 2,      // decayed score at/above which a vessel's trajectory is always drawn
-  trajectoryMaxVessels: 50,  // top-N by decayed score in /api/trajectories
+  trajectoryMaxVessels: 50,  // top-N by max open-assessment confidence in /api/trajectories
   trajectoryMaxPoints: 500,  // per-vessel point cap (server-side decimation)
   staleAfterMs: 5 * 60 * 1000,
   alarmIntervalMs: 30 * 1000,

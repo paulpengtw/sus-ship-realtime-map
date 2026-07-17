@@ -21,9 +21,10 @@ describe("replayed capture → /api/trajectories", () => {
 
     const stmts = [
       env.DB.prepare("DELETE FROM vessels"), env.DB.prepare("DELETE FROM positions"), env.DB.prepare("DELETE FROM events"),
-      env.DB.prepare(`INSERT INTO events (id, type, severity, mmsi, lon, lat, start_ts, end_ts, evidence, region)
-                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, NULL, '{}', ?8)`)
-        .bind(loiter.id, loiter.type, loiter.severity, loiter.mmsi, loiter.lon, loiter.lat, loiter.startTs + shift, loiter.region ?? null),
+      env.DB.prepare("DELETE FROM assessments"),
+      env.DB.prepare(`INSERT INTO assessments (id, mmsi, category, status, confidence, opened_ts, updated_ts, closed_ts, region, narrative, evidence)
+                      VALUES (?1, ?2, 'cable_interference', 'open', 0.45, ?3, ?3, NULL, ?4, 'Loitering over corridor.', '[]')`)
+        .bind(`cable_interference-${loiter.mmsi}-1`, loiter.mmsi, loiter.startTs + shift, loiter.region ?? null),
     ];
     const seen = new Set<number>();
     for (const p of positions) {
@@ -43,7 +44,7 @@ describe("replayed capture → /api/trajectories", () => {
     expect(body.trajectories).toHaveLength(1); // calm 999000002 must not appear
     const t = body.trajectories[0];
     expect(t.mmsi).toBe(loiter.mmsi);
-    expect(t.topType).toBe("loitering");
+    expect(t.topCategory).toBe("cable_interference");
     expect(t.points).toHaveLength(positions.filter((p) => p.mmsi === loiter.mmsi).length);
     const ts = t.points.map((p: number[]) => p[2]);
     expect(ts).toEqual([...ts].sort((a: number, b: number) => a - b));

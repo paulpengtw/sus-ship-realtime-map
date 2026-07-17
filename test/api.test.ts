@@ -9,6 +9,7 @@ async function seed() {
     env.DB.prepare("DELETE FROM vessels"), env.DB.prepare("DELETE FROM positions"),
     env.DB.prepare("DELETE FROM events"), env.DB.prepare("DELETE FROM gfw_events"),
     env.DB.prepare("DELETE FROM gfw_backfill"),
+    env.DB.prepare("DELETE FROM assessments"),
     env.DB.prepare(`INSERT INTO vessels (mmsi, name, callsign, last_lon, last_lat, last_sog, last_cog, last_ts, score, score_ts)
                     VALUES (412000001, 'TEST SHIP', 'BXYZ1', 120.2, 22.0, 0.5, 90, ?1, 6.5, ?1)`).bind(T0),
     env.DB.prepare(`INSERT INTO vessels (mmsi, name, callsign, last_lon, last_lat, last_sog, last_cog, last_ts, score, score_ts)
@@ -18,6 +19,8 @@ async function seed() {
     env.DB.prepare(`INSERT INTO events (id, type, severity, mmsi, lon, lat, start_ts, end_ts, evidence)
                     VALUES ('loitering-412000001-1', 'loitering', 3, 412000001, 120.2, 22.0, ?1, NULL, '{"corridor":"C1"}')`).bind(T0),
     env.DB.prepare(`INSERT INTO gfw_events VALUES ('gfw-1', 'gap', 412000001, 120.3, 22.1, ?1, ?2, '{}')`).bind(T0 - 3_600_000, T0),
+    env.DB.prepare(`INSERT INTO assessments (id, mmsi, category, status, confidence, opened_ts, updated_ts, closed_ts, region, narrative, evidence)
+                    VALUES ('cable_interference-412000001-1', 412000001, 'cable_interference', 'open', 0.62, ?1, ?1, NULL, 'tw', 'Loitered 3.0 h over C1 corridor.', '[]')`).bind(T0),
   ]);
 }
 
@@ -36,7 +39,9 @@ describe("API worker", () => {
     expect(mmsis).not.toContain(412000002); // outside snapshot window
     const f = body.vessels.features[0];
     expect(f.geometry).toEqual({ type: "Point", coordinates: [120.2, 22.0] });
-    expect(f.properties.score).toBeGreaterThan(0);
+    expect(f.properties.maxConfidence).toBeCloseTo(0.62);
+    expect(f.properties.topCategory).toBe("cable_interference");
+    expect(f.properties.assessments).toEqual([{ category: "cable_interference", confidence: 0.62 }]);
   });
 
   it("/api/events honours since and orders newest-first", async () => {
@@ -81,25 +86,18 @@ describe("API worker", () => {
     expect((await SELF.fetch("https://x/api/vessel/abc")).status).toBe(400);
   });
 
-  it("/api/snapshot joins open events into activeEvents/topType", async () => {
+  it("/api/snapshot joins open assessments into assessments/topCategory/maxConfidence", async () => {
     await env.DB.batch([
       env.DB.prepare(`INSERT INTO vessels (mmsi, name, callsign, last_lon, last_lat, last_sog, last_cog, last_ts, score, score_ts)
                       VALUES (412000003, 'CALM SHIP', NULL, 121.5, 24.0, 8, 45, ?1, 0, ?1)`).bind(T0),
-      // higher-severity open event for 412000001 — must win topType over the seeded loitering (sev 3)
-      env.DB.prepare(`INSERT INTO events (id, type, severity, mmsi, lon, lat, start_ts, end_ts, evidence)
-                      VALUES ('gap-412000001-1', 'gap', 4, 412000001, 120.2, 22.0, ?1, NULL, '{}')`).bind(T0 - 1000),
-      // closed event for 412000003 — must not count
-      env.DB.prepare(`INSERT INTO events (id, type, severity, mmsi, lon, lat, start_ts, end_ts, evidence)
-                      VALUES ('speed-412000003-1', 'speed_anomaly', 2, 412000003, 121.5, 24.0, ?1, ?2, '{}')`).bind(T0 - 5000, T0 - 4000),
-      // open but older than 24 h — must not count either
-      env.DB.prepare(`INSERT INTO events (id, type, severity, mmsi, lon, lat, start_ts, end_ts, evidence)
-                      VALUES ('loitering-412000003-old', 'loitering', 3, 412000003, 121.5, 24.0, ?1, NULL, '{}')`).bind(Date.now() - 25 * 3_600_000),
     ]);
     const body = await (await SELF.fetch("https://x/api/snapshot")).json<any>();
     const props = Object.fromEntries(body.vessels.features.map((f: any) => [f.properties.mmsi, f.properties]));
-    expect(props[412000001].activeEvents).toBe(2);   // seeded loitering + gap
-    expect(props[412000001].topType).toBe("gap");    // severity 4 beats 3
-    expect(props[412000003].activeEvents).toBe(0);   // closed + stale-open events excluded
-    expect(props[412000003].topType).toBeNull();
+    expect(props[412000001].assessments).toEqual([{ category: "cable_interference", confidence: 0.62 }]);
+    expect(props[412000001].topCategory).toBe("cable_interference");
+    expect(props[412000001].maxConfidence).toBeCloseTo(0.62);
+    expect(props[412000003].assessments).toEqual([]);   // no open assessments
+    expect(props[412000003].topCategory).toBeNull();
+    expect(props[412000003].maxConfidence).toBe(0);
   });
 });

@@ -1,8 +1,8 @@
 export { TrackerDO } from "./do/tracker";
 import { CONFIG } from "./config";
-import { decayedScore } from "./score";
 import { gfwBackfillVessel, gfwSync } from "./gfw";
 import { decimatePoints, parseWindow } from "./trajectories";
+import { THREAT_CATEGORIES } from "./types";
 
 export interface Env {
   DB: D1Database;
@@ -29,6 +29,12 @@ const rowToEvent = (r: any) => ({
   evidence: JSON.parse(r.evidence ?? "{}"),
 });
 
+const rowToAssessment = (r: any) => ({
+  id: r.id, mmsi: r.mmsi, category: r.category, status: r.status,
+  confidence: r.confidence, openedTs: r.opened_ts, updatedTs: r.updated_ts, closedTs: r.closed_ts,
+  region: r.region ?? null, narrative: r.narrative, evidence: JSON.parse(r.evidence ?? "[]"),
+});
+
 function regionParam(url: URL): string | null {
   const r = url.searchParams.get("region");
   if (r === null) return "";
@@ -43,43 +49,50 @@ export default {
     ensureTracker(env, ctx); // any API hit keeps the ingest DO alive
     const now = Date.now();
 
+    if (url.pathname === "/api/assessments") {
+      const region = regionParam(url);
+      if (region === null) return json({ error: "bad region" }, 400);
+      const winMs = parseWindow(url.searchParams.get("window"));
+      if (winMs === null) return json({ error: "bad window" }, 400);
+      const base = `SELECT * FROM assessments WHERE (status = 'open' OR closed_ts >= ?1)`;
+      const { results } = region
+        ? await env.DB.prepare(`${base} AND region = ?2 ORDER BY updated_ts DESC LIMIT 200`).bind(now - winMs, region).all<any>()
+        : await env.DB.prepare(`${base} ORDER BY updated_ts DESC LIMIT 200`).bind(now - winMs).all<any>();
+      return json({ generatedAt: now, assessments: results.map(rowToAssessment) });
+    }
+
     if (url.pathname === "/api/snapshot") {
       const region = regionParam(url);
       if (region === null) return json({ error: "bad region" }, 400);
-      const eventsSince = now - 86_400_000; // open events older than 24 h don't flag a vessel
       const baseSelect = `
-        SELECT v.*, COALESCE(ev.active_events, 0) AS active_events, ev.top_type
-        FROM vessels v
+        SELECT v.*, a.cats FROM vessels v
         LEFT JOIN (
-          SELECT e.mmsi, COUNT(*) AS active_events,
-                 (SELECT e2.type FROM events e2
-                  WHERE e2.mmsi = e.mmsi AND e2.end_ts IS NULL AND e2.start_ts >= ?2
-                  ORDER BY e2.severity DESC, e2.start_ts DESC LIMIT 1) AS top_type
-          FROM events e
-          WHERE e.end_ts IS NULL AND e.start_ts >= ?2
-          GROUP BY e.mmsi
-        ) ev ON ev.mmsi = v.mmsi`;
+          SELECT mmsi, json_group_array(json_object('category', category, 'confidence', confidence)) AS cats
+          FROM assessments WHERE status = 'open' GROUP BY mmsi
+        ) a ON a.mmsi = v.mmsi`;
       const { results } = region
-        ? await env.DB.prepare(`${baseSelect} WHERE v.last_ts >= ?1 AND v.region = ?3 ORDER BY v.score DESC`)
-            .bind(now - CONFIG.snapshotWindowMs, eventsSince, region).all<any>()
-        : await env.DB.prepare(`${baseSelect} WHERE v.last_ts >= ?1 ORDER BY v.score DESC`)
-            .bind(now - CONFIG.snapshotWindowMs, eventsSince).all<any>();
-      const newestTs = results.reduce((m, r) => Math.max(m, r.last_ts), 0);
+        ? await env.DB.prepare(`${baseSelect} WHERE v.last_ts >= ?1 AND v.region = ?2`).bind(now - CONFIG.snapshotWindowMs, region).all<any>()
+        : await env.DB.prepare(`${baseSelect} WHERE v.last_ts >= ?1`).bind(now - CONFIG.snapshotWindowMs).all<any>();
+      const withAssess = results.map((r) => {
+        const assessments: { category: string; confidence: number }[] = JSON.parse(r.cats ?? "[]");
+        assessments.sort((a, b) => b.confidence - a.confidence);
+        return { ...r, assessments, maxConfidence: assessments[0]?.confidence ?? 0, topCategory: assessments[0]?.category ?? null };
+      }).sort((a, b) => b.maxConfidence - a.maxConfidence);
+      const newestTs = withAssess.reduce((m, r) => Math.max(m, r.last_ts), 0);
       return json({
         generatedAt: now,
         newestTs: newestTs || null,
         vessels: {
           type: "FeatureCollection",
-          features: results.map((r) => ({
+          features: withAssess.map((r) => ({
             type: "Feature",
             geometry: { type: "Point", coordinates: [r.last_lon, r.last_lat] },
             properties: {
               mmsi: r.mmsi, name: r.name, sog: r.last_sog, cog: r.last_cog,
-              score: Math.round(decayedScore(r.score, r.score_ts, now, CONFIG.scoreHalfLifeMs) * 10) / 10,
-              lastTs: r.last_ts,
-              region: r.region ?? null, shipType: r.ship_type ?? null,
-              activeEvents: r.active_events,
-              topType: r.top_type ?? null,
+              lastTs: r.last_ts, region: r.region ?? null, shipType: r.ship_type ?? null,
+              assessments: r.assessments, topCategory: r.topCategory,
+              maxConfidence: r.maxConfidence,
+              score: Math.round(r.maxConfidence * 5 * 10) / 10, // legacy, remove next release
             },
           })),
         },
@@ -91,29 +104,21 @@ export default {
       if (region === null) return json({ error: "bad region" }, 400);
       const winMs = parseWindow(url.searchParams.get("window"));
       if (winMs === null) return json({ error: "bad window" }, 400);
-      const eventsSince = now - 86_400_000; // same open-event rule as /api/snapshot
-      // SQL prefilter only (decayed score can never exceed the stored score); exact decay,
-      // the sus test, and the top-50 cap happen in JS with the shared decayedScore().
       const susSelect = `
-        SELECT v.mmsi, v.name, v.score, v.score_ts, COALESCE(ev.active_events, 0) AS active_events, ev.top_type
+        SELECT v.mmsi, v.name, a.max_conf, a.top_category
         FROM vessels v
-        LEFT JOIN (
-          SELECT e.mmsi, COUNT(*) AS active_events,
-                 (SELECT e2.type FROM events e2
-                  WHERE e2.mmsi = e.mmsi AND e2.end_ts IS NULL AND e2.start_ts >= ?1
-                  ORDER BY e2.severity DESC, e2.start_ts DESC LIMIT 1) AS top_type
-          FROM events e
-          WHERE e.end_ts IS NULL AND e.start_ts >= ?1
-          GROUP BY e.mmsi
-        ) ev ON ev.mmsi = v.mmsi
-        WHERE (COALESCE(ev.active_events, 0) > 0 OR v.score >= ?2)`;
+        JOIN (
+          SELECT mmsi, MAX(confidence) AS max_conf,
+                 (SELECT a2.category FROM assessments a2
+                  WHERE a2.mmsi = a.mmsi AND a2.status = 'open'
+                  ORDER BY a2.confidence DESC LIMIT 1) AS top_category
+          FROM assessments a WHERE a.status = 'open' GROUP BY a.mmsi
+        ) a ON a.mmsi = v.mmsi`;
       const { results } = region
-        ? await env.DB.prepare(`${susSelect} AND v.region = ?3`).bind(eventsSince, CONFIG.susScoreThreshold, region).all<any>()
-        : await env.DB.prepare(susSelect).bind(eventsSince, CONFIG.susScoreThreshold).all<any>();
+        ? await env.DB.prepare(`${susSelect} WHERE v.region = ?1`).bind(region).all<any>()
+        : await env.DB.prepare(susSelect).all<any>();
       const sus = results
-        .map((r) => ({ ...r, decayed: decayedScore(r.score, r.score_ts, now, CONFIG.scoreHalfLifeMs) }))
-        .filter((r) => r.active_events > 0 || r.decayed >= CONFIG.susScoreThreshold)
-        .sort((a, b) => b.decayed - a.decayed)
+        .sort((a, b) => b.max_conf - a.max_conf)
         .slice(0, CONFIG.trajectoryMaxVessels);
       if (!sus.length) return json({ generatedAt: now, trajectories: [] });
       const marks = sus.map((_, i) => `?${i + 2}`).join(",");
@@ -130,8 +135,8 @@ export default {
         generatedAt: now,
         trajectories: sus.map((s) => ({
           mmsi: s.mmsi, name: s.name,
-          score: Math.round(s.decayed * 10) / 10,
-          topType: s.top_type ?? null,
+          confidence: s.max_conf,
+          topCategory: s.top_category ?? null,
           points: decimatePoints(byMmsi.get(s.mmsi) ?? [], CONFIG.trajectoryMaxPoints),
         })).filter((t) => t.points.length >= 2), // a single point can't draw a line
       });
@@ -155,11 +160,11 @@ export default {
       const [vc, ac, e24, hist] = await env.DB.batch([
         env.DB.prepare(`SELECT region, COUNT(*) AS c FROM vessels WHERE last_ts >= ?1 AND region IS NOT NULL GROUP BY region`)
           .bind(now - CONFIG.snapshotWindowMs),
-        env.DB.prepare(`SELECT region, COUNT(*) AS c FROM events WHERE end_ts IS NULL AND region IS NOT NULL GROUP BY region`),
+        env.DB.prepare(`SELECT region, COUNT(*) AS c FROM assessments WHERE status = 'open' AND region IS NOT NULL GROUP BY region`),
         env.DB.prepare(`SELECT region, COUNT(*) AS c FROM events WHERE start_ts >= ?1 AND region IS NOT NULL GROUP BY region`)
           .bind(now - DAY),
-        env.DB.prepare(`SELECT region, severity, date(start_ts / 1000, 'unixepoch') AS d, COUNT(*) AS c
-                        FROM events WHERE start_ts >= ?1 AND region IS NOT NULL GROUP BY region, severity, d`)
+        env.DB.prepare(`SELECT region, category, date(opened_ts / 1000, 'unixepoch') AS d, COUNT(*) AS c
+                        FROM assessments WHERE opened_ts >= ?1 AND region IS NOT NULL GROUP BY region, category, d`)
           .bind(now - 13 * DAY - (now % DAY)),
       ]);
       const regions: Record<string, { vessels: number; activeAlerts: number; events24h: number }> = {};
@@ -168,7 +173,7 @@ export default {
         regions[r.id] = { vessels: 0, activeAlerts: 0, events24h: 0 };
         histogram[r.id] = Array.from({ length: 14 }, (_, i) => ({
           day: new Date(now - (13 - i) * DAY).toISOString().slice(0, 10),
-          counts: [0, 0, 0, 0, 0],
+          counts: [0, 0, 0, 0],
         }));
       }
       for (const row of vc.results as any[]) if (regions[row.region]) regions[row.region].vessels = row.c;
@@ -176,7 +181,8 @@ export default {
       for (const row of e24.results as any[]) if (regions[row.region]) regions[row.region].events24h = row.c;
       for (const row of hist.results as any[]) {
         const bucket = histogram[row.region]?.find((b) => b.day === row.d);
-        if (bucket) bucket.counts[row.severity - 1] = row.c;
+        const idx = THREAT_CATEGORIES.indexOf(row.category);
+        if (bucket && idx >= 0) bucket.counts[idx] = row.c;
       }
       return json({ generatedAt: now, regions, histogram });
     }
@@ -220,18 +226,22 @@ export default {
       const vessel = await env.DB.prepare(`SELECT * FROM vessels WHERE mmsi = ?1`).bind(mmsi).first<any>();
       if (!vessel) return json({ error: "unknown vessel" }, 404);
       const events = await env.DB.prepare(`SELECT * FROM events WHERE mmsi = ?1 ORDER BY start_ts DESC LIMIT 100`).bind(mmsi).all<any>();
+      const assess = await env.DB.prepare(`SELECT * FROM assessments WHERE mmsi = ?1 ORDER BY updated_ts DESC LIMIT 20`).bind(mmsi).all<any>();
+      const assessments = assess.results.map(rowToAssessment);
+      const maxConfidence = Math.max(0, ...assessments.filter((a) => a.status === "open").map((a) => a.confidence));
       return json({
         generatedAt: now,
         vessel: {
           mmsi: vessel.mmsi, name: vessel.name, callsign: vessel.callsign,
           lon: vessel.last_lon, lat: vessel.last_lat, sog: vessel.last_sog, cog: vessel.last_cog, lastTs: vessel.last_ts,
-          score: Math.round(decayedScore(vessel.score, vessel.score_ts, now, CONFIG.scoreHalfLifeMs) * 10) / 10,
+          score: Math.round(maxConfidence * 5 * 10) / 10,
           region: vessel.region ?? null, shipType: vessel.ship_type ?? null,
           destination: vessel.destination ?? null,
           dimBow: vessel.dim_bow ?? null, dimStern: vessel.dim_stern ?? null,
           dimPort: vessel.dim_port ?? null, dimStarboard: vessel.dim_starboard ?? null,
         },
         events: events.results.map(rowToEvent),
+        assessments,
       });
     }
 

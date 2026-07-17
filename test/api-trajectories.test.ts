@@ -16,16 +16,15 @@ describe("/api/trajectories", () => {
   beforeEach(async () => {
     await env.DB.batch([
       env.DB.prepare("DELETE FROM vessels"), env.DB.prepare("DELETE FROM positions"), env.DB.prepare("DELETE FROM events"),
-      // A: open event, score 0 → sus via event
+      env.DB.prepare("DELETE FROM assessments"),
       vessel(500000001, "EVENT SHIP", 0, NOW),
-      env.DB.prepare(`INSERT INTO events (id, type, severity, mmsi, lon, lat, start_ts, end_ts, evidence, region)
-                      VALUES ('loitering-500000001-1', 'loitering', 3, 500000001, 120.5, 22.5, ?1, NULL, '{}', 'tw')`).bind(NOW - H),
-      // B: fresh score 5 → decayed ≈ 5 ≥ 2 → sus via score
+      env.DB.prepare(`INSERT INTO assessments (id, mmsi, category, status, confidence, opened_ts, updated_ts, closed_ts, region, narrative, evidence)
+                      VALUES ('cable_interference-500000001-1', 500000001, 'cable_interference', 'open', 0.62, ?1, ?1, NULL, 'tw', 'x', '[]')`).bind(NOW - H),
       vessel(500000002, "SCORE SHIP", 5, NOW),
-      // C: stored score 5 but 3 days old → decayed ≈ 0.6 < 2 → calm
-      vessel(500000003, "FADED SHIP", 5, NOW - 3 * D),
-      // D: nothing → calm
-      vessel(500000004, "CALM SHIP", 0, NOW),
+      env.DB.prepare(`INSERT INTO assessments (id, mmsi, category, status, confidence, opened_ts, updated_ts, closed_ts, region, narrative, evidence)
+                      VALUES ('dark_activity-500000002-1', 500000002, 'dark_activity', 'open', 0.3, ?1, ?1, NULL, 'tw', 'x', '[]')`).bind(NOW - H),
+      vessel(500000003, "FADED SHIP", 5, NOW - 3 * D),   // no assessment → calm
+      vessel(500000004, "CALM SHIP", 0, NOW),            // no assessment → calm
       pos(500000001, NOW - 2 * D, 120.1, 22.1), pos(500000001, NOW - 20 * H, 120.2, 22.2), pos(500000001, NOW - H, 120.3, 22.3),
       pos(500000002, NOW - 2 * H, 121.0, 23.0), pos(500000002, NOW - H, 121.1, 23.1),
       pos(500000003, NOW - 2 * H), pos(500000003, NOW - H),
@@ -33,15 +32,15 @@ describe("/api/trajectories", () => {
     ]);
   });
 
-  it("returns only sus vessels (open event OR decayed score ≥ 2) with ascending points", async () => {
+  it("returns only sus vessels (open assessment) with ascending points", async () => {
     const body = await (await SELF.fetch("https://x/api/trajectories?window=week")).json<any>();
     const byMmsi = Object.fromEntries(body.trajectories.map((t: any) => [t.mmsi, t]));
     expect(Object.keys(byMmsi).map(Number).sort()).toEqual([500000001, 500000002]);
-    expect(byMmsi[500000001].topType).toBe("loitering");
+    expect(byMmsi[500000001].topCategory).toBe("cable_interference");
+    expect(byMmsi[500000001].confidence).toBeCloseTo(0.62);
     expect(byMmsi[500000001].points).toHaveLength(3);
     const ts = byMmsi[500000001].points.map((p: number[]) => p[2]);
     expect(ts).toEqual([...ts].sort((a: number, b: number) => a - b));
-    expect(byMmsi[500000002].score).toBeCloseTo(5, 0);
   });
 
   it("window bounds the points returned", async () => {
@@ -57,17 +56,20 @@ describe("/api/trajectories", () => {
     expect((await SELF.fetch("https://x/api/trajectories?region=zz")).status).toBe(400);
   });
 
-  it("caps at the top 50 vessels by decayed score, highest first", async () => {
+  it("caps at the top 50 vessels by max confidence, highest first", async () => {
     const stmts = [];
     for (let i = 0; i < 60; i++) {
       const mmsi = 600000000 + i;
       stmts.push(vessel(mmsi, `BULK ${i}`, 3 + i * 0.1, NOW));
       stmts.push(pos(mmsi, NOW - 2 * H, 122 + i * 0.01, 24), pos(mmsi, NOW - H, 122 + i * 0.01, 24.1));
+      stmts.push(env.DB.prepare(`INSERT INTO assessments (id, mmsi, category, status, confidence, opened_ts, updated_ts, closed_ts, region, narrative, evidence)
+                                 VALUES (?1, ?2, 'cable_interference', 'open', ?3, ?4, ?4, NULL, 'tw', 'x', '[]')`)
+        .bind(`cable_interference-${mmsi}-1`, mmsi, 0.3 + i * 0.01, NOW - H));
     }
     await env.DB.batch(stmts);
     const body = await (await SELF.fetch("https://x/api/trajectories")).json<any>();
     expect(body.trajectories).toHaveLength(50);
-    const scores = body.trajectories.map((t: any) => t.score);
+    const scores = body.trajectories.map((t: any) => t.confidence);
     expect(scores).toEqual([...scores].sort((a: number, b: number) => b - a));
   });
 });
