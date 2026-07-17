@@ -40,6 +40,20 @@ export interface AnomalyEvent {
   region?: RegionId | null;
 }
 
+export const THREAT_CATEGORIES = ["cable_interference", "dark_activity", "identity_deception", "militia_presence"] as const;
+export type ThreatCategory = (typeof THREAT_CATEGORIES)[number];
+export interface EvidenceRef { eventId: string; type: EventType; kind: string | null; weight: number; ts: number; summary: string }
+export interface ThreatAssessment {
+  id: string; mmsi: number; category: ThreatCategory; status: "open" | "closed";
+  confidence: number; openedTs: number; updatedTs: number; closedTs: number | null;
+  evidence: EvidenceRef[]; narrative: string; region: RegionId | null; lastLon: number; lastLat: number;
+}
+export interface CategoryState { score: number; ts: number; contributed: Record<string, number>; recent: EvidenceRef[]; belowSince: number | null }
+
+export function newCategoryState(now: number): CategoryState {
+  return { score: 0, ts: now, contributed: {}, recent: [], belowSince: null };
+}
+
 export interface VesselState {
   mmsi: number;
   name: string | null;
@@ -61,8 +75,8 @@ export interface VesselState {
   dragReportedTs: number | null;
   lastSpeedEventTs: number | null;
   lastRouteEventTs: number | null;
-  score: number;
-  scoreTs: number;
+  categories: Record<ThreatCategory, CategoryState>;
+  assessments: Partial<Record<ThreatCategory, ThreatAssessment>>;
 }
 
 export function newVesselState(mmsi: number, now: number): VesselState {
@@ -75,6 +89,12 @@ export function newVesselState(mmsi: number, now: number): VesselState {
     loiterStart: null, loiterReported: false,
     gapOpenSince: null, leftCoverage: false, dragReportedTs: null,
     lastSpeedEventTs: null, lastRouteEventTs: null,
-    score: 0, scoreTs: now,
+    categories: {
+      cable_interference: newCategoryState(now),
+      dark_activity: newCategoryState(now),
+      identity_deception: newCategoryState(now),
+      militia_presence: newCategoryState(now),
+    },
+    assessments: {},
   };
 }

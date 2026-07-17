@@ -41,6 +41,10 @@ export const CONFIG = {
   ringSize: 120,
   identityHistorySize: 20,
   scoreHalfLifeMs: 24 * 60 * 60 * 1000,
+  assessmentOpenScore: 0.6,
+  assessmentCloseScore: 0.2,
+  assessmentCloseAfterMs: 43_200_000,
+  darkRepositionMinM: 9_260,
   persistMinIntervalMs: 5 * 60 * 1000,
   persistMinMoveM: 100,
   // Tiered position retention (trajectories spec §1): ≤48 h raw, then 1 pt/10 min to 30 d, 1 pt/h to 180 d.
