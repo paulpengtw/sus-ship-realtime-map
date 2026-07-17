@@ -8,12 +8,13 @@ const POLL_MS = 15_000;
 const STALE_MS = 5 * 60_000; // keep in sync with CONFIG.staleAfterMs
 const PULSE_MS = 1500;       // sus-halo pulse period (spec: ~1.5 s)
 
-// A vessel is "sus" when the backend reports an open detector event.
-// coalesce keeps old cached snapshots (no activeEvents property) rendering as calm.
-const SUS_ACTIVE = [">", ["coalesce", ["get", "activeEvents"], 0], 0] as any;
-// grey → amber → red by suspicion score; solid red overrides the ramp while an event is open.
-const COLOR = ["case", SUS_ACTIVE, "#ff2b2b",
-  ["interpolate", ["linear"], ["get", "score"], 0, "#aab6c8", 3, "#f0a83c", 8, "#e5484d"]] as any;
+// A vessel is "sus" when it has at least one open threat assessment.
+const SUS_ACTIVE = [">", ["coalesce", ["get", "maxConfidence"], 0], 0] as any;
+// Colored by top assessment category; calm traffic stays grey.
+const CAT_MATCH = ["match", ["coalesce", ["get", "topCategory"], ""],
+  "cable_interference", "#e5484d", "dark_activity", "#b18cff",
+  "identity_deception", "#f0a83c", "militia_presence", "#4cc3ff", "#e5484d"] as any;
+const COLOR = ["case", SUS_ACTIVE, CAT_MATCH, "#aab6c8"] as any;
 // Heading is only trustworthy when the vessel is actually moving (spec: sog >= 0.5 kn).
 const HAS_HEADING = ["all", ["has", "cog"], [">=", ["coalesce", ["get", "sog"], 0], 0.5]] as any;
 
@@ -78,7 +79,7 @@ function startPulse(): void {
     const s = (Math.sin(((t % PULSE_MS) / PULSE_MS) * 2 * Math.PI) + 1) / 2; // 0→1 sinusoid
     if (map.getLayer("sus-halo")) {
       map.setPaintProperty("sus-halo", "circle-radius", 10 + 8 * s);
-      map.setPaintProperty("sus-halo", "circle-stroke-opacity", 0.9 - 0.6 * s);
+      map.setPaintProperty("sus-halo", "circle-stroke-opacity", Math.max(0.2, 0.9 - 0.6 * s));
     }
     requestAnimationFrame(frame);
   };
@@ -128,7 +129,8 @@ export function initVessels(onSelect: (mmsi: number) => void): void {
     filter: SUS_ACTIVE,
     paint: {
       "circle-radius": 10, "circle-color": "transparent",
-      "circle-stroke-color": "#ff2b2b", "circle-stroke-width": 2, "circle-stroke-opacity": 0.9,
+      "circle-stroke-color": CAT_MATCH, "circle-stroke-width": 2,
+      "circle-stroke-opacity": ["interpolate", ["linear"], ["coalesce", ["get", "maxConfidence"], 0], 0.2, 0.4, 1, 0.95],
     },
   });
 
