@@ -23,12 +23,14 @@ export function parseAisStreamMessage(raw: unknown): { pos?: AisPosition; ident?
       const lat = Number(r.MetaData.latitude), lon = Number(r.MetaData.longitude);
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
       const heading = Number(pr.TrueHeading);
+      const ns = Number(pr.NavigationalStatus);
       return {
         pos: {
           mmsi, lon, lat,
           sog: Number(pr.Sog) || 0,
           cog: Number(pr.Cog) || 0,
           heading: Number.isFinite(heading) && heading !== 511 ? heading : null,
+          navStatus: Number.isInteger(ns) && ns >= 0 && ns <= 15 ? ns : null,
           ts,
         },
       };

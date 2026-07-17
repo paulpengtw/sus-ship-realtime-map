@@ -7,6 +7,7 @@ export interface AisPosition {
   sog: number;
   cog: number;
   heading: number | null;
+  navStatus?: number | null; // AIS NavigationalStatus: 0 under way, 1 at anchor, 5 moored; null = unknown
   ts: number;
 }
 
@@ -16,7 +17,6 @@ export interface AisIdentity {
   callsign: string;
   shipType: number | null;
   ts: number;
-  shipType?: number | null;
   destination?: string | null;
   dimBow?: number | null;
   dimStern?: number | null;
