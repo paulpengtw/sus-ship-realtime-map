@@ -151,3 +151,33 @@ export function maxCategoryScore(s: VesselState): { score: number; ts: number } 
   }
   return best;
 }
+
+// Close assessments whose decayed score stayed below the close threshold for the
+// configured dwell (spec §4c). Returns the closed assessments for persistence.
+export function fusionTick(s: VesselState, cfg: Config, now: number): ThreatAssessment[] {
+  const closed: ThreatAssessment[] = [];
+  for (const category of THREAT_CATEGORIES) {
+    const a = s.assessments[category];
+    if (!a) continue;
+    const cs = s.categories[category];
+    const current = decayedScore(cs.score, cs.ts, now, cfg.scoreHalfLifeMs);
+    if (current >= cfg.assessmentCloseScore) {
+      cs.belowSince = null;
+      continue;
+    }
+    if (cs.belowSince === null) {
+      cs.belowSince = now;
+      continue;
+    }
+    if (now - cs.belowSince >= cfg.assessmentCloseAfterMs) {
+      a.status = "closed";
+      a.closedTs = now;
+      a.confidence = confidenceFor(current);
+      a.updatedTs = now;
+      delete s.assessments[category];
+      cs.belowSince = null;
+      closed.push(a);
+    }
+  }
+  return closed;
+}
