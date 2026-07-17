@@ -18,7 +18,7 @@ async function refresh(): Promise<void> {
       features: res.trajectories.map((t) => ({
         type: "Feature",
         geometry: { type: "LineString", coordinates: t.points.map((p) => [p[0], p[1]]) },
-        properties: { mmsi: t.mmsi, name: t.name ?? `MMSI ${t.mmsi}`, score: t.score, topType: t.topType },
+        properties: { mmsi: t.mmsi, name: t.name ?? `MMSI ${t.mmsi}`, score: t.confidence, topCategory: t.topCategory },
       })),
     } as any);
   } catch (err) {

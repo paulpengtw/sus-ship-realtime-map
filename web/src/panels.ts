@@ -1,6 +1,7 @@
 // web/src/panels.ts
 import type { GeoJSONSource } from "maplibre-gl";
-import { fetchEvents, fetchVessel, fetchVesselTrack, type ApiEvent, type GfwBreadcrumb } from "./api";
+import { fetchAssessments, fetchVessel, fetchVesselTrack, type ApiEvent, type GfwBreadcrumb } from "./api";
+import { CATEGORY_LABEL, renderAssessmentItem } from "./assess";
 import { writeHash } from "./hash";
 import { hashState, map } from "./main";
 import { flagForMmsi } from "./mid";
@@ -147,14 +148,14 @@ export function initEventFeed(): void {
   onWindowChange(() => { if (selectedMmsi !== null) selectVessel(selectedMmsi); });
 
   const chipsEl = document.getElementById("filter-chips")!;
-  const allTypes = ["All", "loitering", "ais_gap", "identity", "anchor_drag", "speed_anomaly", "route_deviation"];
+  const allCats = ["All", "cable_interference", "dark_activity", "identity_deception"];
   let activeFilter: string | null = hashState.filter ?? null;
 
   function renderChips(): void {
-    chipsEl.innerHTML = allTypes.map((t) => {
-      const label = t === "All" ? "All" : TYPE_LABEL[t] ?? t;
-      const isActive = (t === "All" && !activeFilter) || activeFilter === t;
-      return `<button data-type="${t}" class="${isActive ? "active" : ""}">${label}</button>`;
+    chipsEl.innerHTML = allCats.map((c) => {
+      const label = c === "All" ? "All" : CATEGORY_LABEL[c] ?? c;
+      const isActive = (c === "All" && !activeFilter) || activeFilter === c;
+      return `<button data-type="${c}" class="${isActive ? "active" : ""}">${label}</button>`;
     }).join("");
   }
 
@@ -180,13 +181,13 @@ export function initEventFeed(): void {
   const poll = async () => {
     try {
       const f = getDayFilter();
-      const since = f ? f.startTs : Date.now() - 24 * 3_600_000;
-      const res = await fetchEvents(since, getRegion());
-      let events = f ? res.events.filter((e) => e.startTs < f.endTs) : res.events;
-      if (activeFilter) events = events.filter((e) => e.type === activeFilter);
-      list.innerHTML = events.map(renderEvent).join("") ||
-        `<li>${f ? `No events on ${f.day}` : "No events in the last 24 h"}</li>`;
-    } catch (err) { console.error("event feed failed:", err); }
+      const res = await fetchAssessments(getRegion(), getWindow());
+      let items = res.assessments;
+      if (f) items = items.filter((a) => a.openedTs >= f.startTs && a.openedTs < f.endTs);
+      if (activeFilter) items = items.filter((a) => a.category === activeFilter);
+      list.innerHTML = items.map(renderAssessmentItem).join("") ||
+        `<li>${f ? `No assessments on ${f.day}` : "No open assessments"}</li>`;
+    } catch (err) { console.error("assessment feed failed:", err); }
   };
   list.addEventListener("click", (e) => {
     const li = (e.target as HTMLElement).closest("li[data-mmsi]") as HTMLElement | null;
