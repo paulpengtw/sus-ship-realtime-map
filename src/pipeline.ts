@@ -8,11 +8,12 @@ import { routeOnMessage } from "./detectors/route";
 import { speedOnMessage } from "./detectors/speed";
 import type { GeoContext } from "./geo/context";
 import { regionForPoint } from "./geo/regions";
-import { applyEventToScore } from "./score";
-import { newVesselState, type AisIdentity, type AisPosition, type AnomalyEvent, type VesselState } from "./types";
+import { applyEventToFusion, fusionTick } from "./fusion";
+import { newVesselState, type AisIdentity, type AisPosition, type AnomalyEvent, type ThreatAssessment, type VesselState } from "./types";
 
 export class Tracker {
   states = new Map<number, VesselState>();
+  private changedAssessments = new Map<string, ThreatAssessment>();
 
   constructor(private geo: GeoContext, private cfg: Config = CONFIG) {}
 
@@ -22,7 +23,7 @@ export class Tracker {
     return s;
   }
 
-  private guard(s: VesselState, fn: () => AnomalyEvent[]): AnomalyEvent[] {
+  private guard<T>(s: VesselState, fn: () => T[]): T[] {
     try { return fn(); } catch (err) {
       console.error(`detector error mmsi=${s.mmsi}:`, err);
       return [];
@@ -48,7 +49,7 @@ export class Tracker {
     s.region = region;
     for (const ev of events) {
       ev.region = region;
-      applyEventToScore(s, ev, this.cfg, msg.ts);
+      for (const a of applyEventToFusion(s, ev, this.geo, this.cfg, msg.ts)) this.changedAssessments.set(a.id, a);
     }
 
     s.ring.push(msg);
@@ -66,7 +67,10 @@ export class Tracker {
     if (ident.dimStern != null) s.dimStern = ident.dimStern;
     if (ident.dimPort != null) s.dimPort = ident.dimPort;
     if (ident.dimStarboard != null) s.dimStarboard = ident.dimStarboard;
-    for (const ev of events) { ev.region = s.region; applyEventToScore(s, ev, this.cfg, ident.ts); }
+    for (const ev of events) {
+      ev.region = s.region;
+      for (const a of applyEventToFusion(s, ev, this.geo, this.cfg, ident.ts)) this.changedAssessments.set(a.id, a);
+    }
     return events;
   }
 
@@ -74,9 +78,19 @@ export class Tracker {
     const events: AnomalyEvent[] = [];
     for (const s of this.states.values()) {
       const evs = this.guard(s, () => gapOnTick(s, this.geo, this.cfg, now));
-      for (const ev of evs) { ev.region = s.region; applyEventToScore(s, ev, this.cfg, now); }
+      for (const ev of evs) {
+        ev.region = s.region;
+        for (const a of applyEventToFusion(s, ev, this.geo, this.cfg, now)) this.changedAssessments.set(a.id, a);
+      }
       events.push(...evs);
+      for (const a of this.guard(s, () => fusionTick(s, this.cfg, now))) this.changedAssessments.set(a.id, a);
     }
     return events;
+  }
+
+  drainChangedAssessments(): ThreatAssessment[] {
+    const out = [...this.changedAssessments.values()].map((a) => ({ ...a, evidence: [...a.evidence] }));
+    this.changedAssessments.clear();
+    return out;
   }
 }

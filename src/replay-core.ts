@@ -3,15 +3,18 @@ import { parseAisStreamMessage } from "./aisstream";
 import { CONFIG } from "./config";
 import type { GeoContext } from "./geo/context";
 import { Tracker } from "./pipeline";
-import type { AnomalyEvent } from "./types";
+import type { AnomalyEvent, ThreatAssessment } from "./types";
 
 export function replayCapture(lines: string[], geo: GeoContext, tickIntervalMs = CONFIG.alarmIntervalMs, region?: string): {
-  events: AnomalyEvent[]; vessels: number; messages: number;
+  events: AnomalyEvent[]; vessels: number; messages: number; assessments: ThreatAssessment[];
 } {
   const tracker = new Tracker(geo);
   const events: AnomalyEvent[] = [];
   let messages = 0;
   let lastTick = 0;
+
+  const assessById = new Map<string, ThreatAssessment>();
+  const collect = () => { for (const a of tracker.drainChangedAssessments()) assessById.set(a.id, a); };
 
   const parsed = lines
     .map((l) => { try { return parseAisStreamMessage(JSON.parse(l)); } catch { return null; } })
@@ -25,9 +28,16 @@ export function replayCapture(lines: string[], geo: GeoContext, tickIntervalMs =
     while (ts - lastTick >= tickIntervalMs) {
       lastTick += tickIntervalMs;
       events.push(...tracker.tick(lastTick));
+      collect();
     }
     if (p.pos) { events.push(...tracker.handlePosition(p.pos)); messages++; }
     if (p.ident) { events.push(...tracker.handleStatic(p.ident)); messages++; }
   }
-  return { events: region ? events.filter((e) => e.region === region) : events, vessels: tracker.states.size, messages };
+  collect();
+  return {
+    events: region ? events.filter((e) => e.region === region) : events,
+    vessels: tracker.states.size,
+    messages,
+    assessments: [...assessById.values()],
+  };
 }
