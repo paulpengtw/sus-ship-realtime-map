@@ -92,7 +92,7 @@ export function signalsFor(ev: AnomalyEvent, s: VesselState, geo: GeoContext, cf
 function narrativeFrom(evidence: EvidenceRef[]): string {
   const clauses = evidence.map((r) => r.summary);
   const joined = clauses.join(", then ");
-  return joined ? joined + "." : "";
+  return joined ? joined.charAt(0).toUpperCase() + joined.slice(1) + "." : "";
 }
 
 function upsertEvidence(list: EvidenceRef[], ref: EvidenceRef): void {

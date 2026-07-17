@@ -32,7 +32,7 @@ describe("pipeline fusion wiring", () => {
     expect(cable).toBeDefined();
     expect(cable.status).toBe("open");
     expect(cable.evidence.length).toBeGreaterThanOrEqual(2);
-    expect(cable.narrative).toContain("loitered");
+    expect(cable.narrative).toMatch(/loitered/i);
     expect(t.drainChangedAssessments()).toEqual([]); // drained
     // dark_activity: single gap event (max rule) → not open
     expect(t.states.get(2)!.assessments.dark_activity).toBeUndefined();
