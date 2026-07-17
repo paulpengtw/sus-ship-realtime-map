@@ -10,7 +10,9 @@ CREATE TABLE assessments (
   closed_ts INTEGER,
   region TEXT,
   narrative TEXT NOT NULL,
-  evidence TEXT NOT NULL          -- JSON EvidenceRef[]
+  evidence TEXT NOT NULL,         -- JSON EvidenceRef[]
+  last_lon REAL NOT NULL DEFAULT 0,
+  last_lat REAL NOT NULL DEFAULT 0
 );
 CREATE INDEX idx_assessments_status_region ON assessments (status, region, updated_ts);
 CREATE INDEX idx_assessments_mmsi ON assessments (mmsi, updated_ts);

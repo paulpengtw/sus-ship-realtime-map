@@ -32,6 +32,8 @@ describe("assessment persistence", () => {
     expect(open).toHaveLength(1);
     expect(open[0]).toMatchObject({ id: assessment().id, confidence: 0.62, category: "cable_interference", status: "open" });
     expect(open[0].evidence[0].summary).toContain("loitered");
+    expect(open[0].lastLon).toBeCloseTo(120.2);
+    expect(open[0].lastLat).toBeCloseTo(22.0);
 
     // closing removes it from the open set
     const p3 = newPendingWrites();

@@ -33,6 +33,7 @@ const rowToAssessment = (r: any) => ({
   id: r.id, mmsi: r.mmsi, category: r.category, status: r.status,
   confidence: r.confidence, openedTs: r.opened_ts, updatedTs: r.updated_ts, closedTs: r.closed_ts,
   region: r.region ?? null, narrative: r.narrative, evidence: JSON.parse(r.evidence ?? "[]"),
+  lastLon: r.last_lon, lastLat: r.last_lat,
 });
 
 function regionParam(url: URL): string | null {

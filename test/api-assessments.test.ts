@@ -29,8 +29,10 @@ describe("/api/assessments", () => {
     expect(ids).toContain("identity_deception-3-1"); // closed within window
     expect(ids).not.toContain("cable_interference-4-1"); // closed 40 d ago
     const a = body.assessments.find((x: any) => x.id === "cable_interference-1-1");
-    expect(a).toMatchObject({ mmsi: 416000001, category: "cable_interference", status: "open", confidence: 0.62 });
+    expect(a).toMatchObject({ mmsi: 416000001, category: "cable_interference", status: "open", confidence: 0.62, lastLon: 0, lastLat: 0 });
     expect(a.narrative).toContain("Loitered");
+    expect(typeof a.lastLon).toBe("number");
+    expect(typeof a.lastLat).toBe("number");
   });
 
   it("filters by region and validates params", async () => {

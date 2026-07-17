@@ -47,10 +47,10 @@ export async function flushWrites(db: D1Database, p: PendingWrites): Promise<voi
 
   for (const a of p.assessments.values()) {
     stmts.push(db.prepare(
-      `INSERT INTO assessments (id, mmsi, category, status, confidence, opened_ts, updated_ts, closed_ts, region, narrative, evidence)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
-       ON CONFLICT (id) DO UPDATE SET status = ?4, confidence = ?5, updated_ts = ?7, closed_ts = ?8, region = ?9, narrative = ?10, evidence = ?11`,
-    ).bind(a.id, a.mmsi, a.category, a.status, a.confidence, a.openedTs, a.updatedTs, a.closedTs, a.region ?? null, a.narrative, JSON.stringify(a.evidence)));
+      `INSERT INTO assessments (id, mmsi, category, status, confidence, opened_ts, updated_ts, closed_ts, region, narrative, evidence, last_lon, last_lat)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+       ON CONFLICT (id) DO UPDATE SET status = ?4, confidence = ?5, updated_ts = ?7, closed_ts = ?8, region = ?9, narrative = ?10, evidence = ?11, last_lon = ?12, last_lat = ?13`,
+    ).bind(a.id, a.mmsi, a.category, a.status, a.confidence, a.openedTs, a.updatedTs, a.closedTs, a.region ?? null, a.narrative, JSON.stringify(a.evidence), a.lastLon, a.lastLat));
   }
 
   if (stmts.length) await db.batch(stmts);
@@ -78,7 +78,7 @@ export async function loadOpenAssessments(db: D1Database): Promise<ThreatAssessm
     id: r.id, mmsi: r.mmsi, category: r.category, status: r.status,
     confidence: r.confidence, openedTs: r.opened_ts, updatedTs: r.updated_ts, closedTs: r.closed_ts,
     evidence: JSON.parse(r.evidence ?? "[]"), narrative: r.narrative,
-    region: r.region ?? null, lastLon: 0, lastLat: 0,
+    region: r.region ?? null, lastLon: r.last_lon, lastLat: r.last_lat,
   }));
 }
 
