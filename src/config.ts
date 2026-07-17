@@ -36,6 +36,7 @@ export const CONFIG = {
   dragMinSogKn: 0.3,
   dragWindow: 10,
   dragMinCogStdDeg: 40,
+  dragMinDisplacementM: 150,
   dragCooldownMs: 60 * 60 * 1000,
   ringSize: 120,
   identityHistorySize: 20,

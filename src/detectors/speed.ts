@@ -3,6 +3,7 @@ import type { Config } from "../config";
 import type { GeoContext } from "../geo/context";
 import type { LngLat } from "../geo/geo";
 import type { AisPosition, AnomalyEvent, Severity, VesselState } from "../types";
+import { activityFor } from "../activity";
 
 export const SHIP_TYPE_MAX_SOG: Record<number, number> = {
   30: 12,                    // fishing
@@ -21,6 +22,8 @@ export function speedOnMessage(s: VesselState, msg: AisPosition, geo: GeoContext
   if (s.lastSpeedEventTs !== null && msg.ts - s.lastSpeedEventTs < cfg.speedCooldownMs) return [];
 
   const p: LngLat = [msg.lon, msg.lat];
+  if (activityFor(s, msg, geo, cfg) !== "underway" || geo.inExclusion(p)) return [];
+
   const window = [...s.ring.slice(-(cfg.speedAnomalyWindow - 1)), msg];
 
   // 5a: type-mismatch speed

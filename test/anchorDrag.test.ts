@@ -51,4 +51,14 @@ describe("anchor drag detector", () => {
     const cogs = [10, 170, 300, 80, 220, 350, 40, 190, 310, 100, 250, 20];
     expect(feed(s, track(4, 22.0, cogs, 0.1))).toHaveLength(0);
   });
+
+  it("swinging at anchor (jitter, no net displacement) does NOT fire", () => {
+    const s = newVesselState(5, T0);
+    const cogs = [10, 170, 300, 80, 220, 350, 40, 190, 310, 100, 250, 20];
+    // erratic COG but the vessel oscillates within ~30 m of one spot
+    const positions: AisPosition[] = cogs.map((cog, i) => ({
+      mmsi: 5, lon: 120.3 + (i % 2) * 0.0003, lat: 22.0, sog: 1.0, cog, heading: cog, ts: T0 + i * 60_000,
+    }));
+    expect(feed(s, positions)).toHaveLength(0);
+  });
 });

@@ -3,10 +3,12 @@ import type { Config } from "../config";
 import type { GeoContext } from "../geo/context";
 import type { AisPosition, AnomalyEvent, VesselState } from "../types";
 import type { LngLat } from "../geo/geo";
+import { activityFor } from "../activity";
 
 export function loiteringOnMessage(s: VesselState, msg: AisPosition, geo: GeoContext, cfg: Config): AnomalyEvent[] {
   const p: LngLat = [msg.lon, msg.lat];
-  const loiterCandidate = msg.sog < cfg.loiterMaxSogKn && geo.inCorridor(p) && !geo.inExclusion(p);
+  const loiterCandidate = msg.sog < cfg.loiterMaxSogKn && geo.inCorridor(p) && !geo.inExclusion(p)
+    && activityFor(s, msg, geo, cfg) !== "moored";
 
   if (loiterCandidate) {
     if (s.loiterStart === null) {

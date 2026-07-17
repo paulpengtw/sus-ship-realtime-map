@@ -1,6 +1,7 @@
 import type { Config } from "../config";
 import type { GeoContext } from "../geo/context";
 import type { AisPosition, AnomalyEvent, VesselState } from "../types";
+import { haversineM } from "../geo/geo";
 
 const D2R = Math.PI / 180;
 
@@ -27,12 +28,15 @@ export function anchorDragOnMessage(s: VesselState, msg: AisPosition, geo: GeoCo
   const cogStd = circularStdDeg(window.map((p) => p.cog));
   if (cogStd < cfg.dragMinCogStdDeg) return [];
 
+  const displacement = haversineM([window[0].lon, window[0].lat], [msg.lon, msg.lat]);
+  if (displacement < cfg.dragMinDisplacementM) return [];
+
   s.dragReportedTs = msg.ts;
   return [{
     id: `anchor_drag-${s.mmsi}-${window[0].ts}`,
     type: "anchor_drag", severity: 5, mmsi: s.mmsi,
     lon: msg.lon, lat: msg.lat,
     startTs: window[0].ts, endTs: msg.ts,
-    evidence: { corridor: geo.nearestCorridor([msg.lon, msg.lat])!.name, cogStdDeg: Math.round(cogStd), meanSogKn: Math.round((window.reduce((a, p) => a + p.sog, 0) / window.length) * 10) / 10 },
+    evidence: { corridor: geo.nearestCorridor([msg.lon, msg.lat])!.name, cogStdDeg: Math.round(cogStd), meanSogKn: Math.round((window.reduce((a, p) => a + p.sog, 0) / window.length) * 10) / 10, displacementM: Math.round(displacement) },
   }];
 }

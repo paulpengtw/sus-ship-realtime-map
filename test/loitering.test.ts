@@ -51,4 +51,28 @@ describe("loitering detector", () => {
     for (let m = 120; m <= 230; m += 10) evs.push(...loiteringOnMessage(s, pos(4, 120.2, 22.0, 0.5, m), geo, CONFIG));
     expect(evs).toHaveLength(0); // neither stretch alone reaches 2 h
   });
+
+  it("moored vessel (navStatus 5) in corridor does NOT loiter", () => {
+    const s = newVesselState(5, T0);
+    const evs: any[] = [];
+    for (let m = 0; m <= 300; m += 10) {
+      const p = pos(5, 120.2, 22.0, 0.5, m);
+      (p as any).navStatus = 5;
+      evs.push(...loiteringOnMessage(s, p, geo, CONFIG));
+      s.ring.push(p); s.lastSeen = p.ts;
+    }
+    expect(evs).toHaveLength(0);
+  });
+
+  it("anchored vessel (navStatus 1) in corridor STILL loiters — anchoring over cable is the threat", () => {
+    const s = newVesselState(6, T0);
+    const evs: any[] = [];
+    for (let m = 0; m <= 130; m += 10) {
+      const p = pos(6, 120.2, 22.0, 0.5, m);
+      (p as any).navStatus = 1;
+      evs.push(...loiteringOnMessage(s, p, geo, CONFIG));
+      s.ring.push(p); s.lastSeen = p.ts;
+    }
+    expect(evs).toHaveLength(1);
+  });
 });
