@@ -31,4 +31,14 @@ describe("assessment rendering helpers", () => {
     expect(html).toContain(`data-lon="120.2"`);
     expect(html).toContain("ongoing"); // open assessment
   });
+
+  it("escapes category fallback in badge to prevent XSS", () => {
+    const malicious: Assessment = {
+      ...a,
+      category: "<img src=x onerror=alert(1)>",
+    };
+    const html = renderAssessmentItem(malicious);
+    expect(html).not.toContain("<img");
+    expect(html).toContain("&lt;img");
+  });
 });

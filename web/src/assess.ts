@@ -20,7 +20,7 @@ const fmtTime = (ts: number) => new Date(ts).toISOString().replace("T", " ").sli
 export function renderAssessmentItem(a: Assessment): string {
   const color = CATEGORY_COLOR[a.category] ?? "#aab6c8";
   return `<li data-lon="${a.lastLon}" data-lat="${a.lastLat}" data-mmsi="${a.mmsi}">
-    <span class="cat-badge" style="background:${color}">${CATEGORY_LABEL[a.category] ?? a.category}</span>
+    <span class="cat-badge" style="background:${color}">${esc(CATEGORY_LABEL[a.category] ?? a.category)}</span>
     <b>${confidencePct(a.confidence)}</b> — MMSI ${a.mmsi}${a.status === "open" ? " · ongoing" : ""}
     <div class="narrative">${esc(a.narrative)}</div>
     <time>${fmtTime(a.updatedTs)}</time></li>`;
