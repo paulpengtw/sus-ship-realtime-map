@@ -26,6 +26,7 @@ export const CONFIG = {
   loiterMaxSogKn: 2,
   loiterMinMs: 2 * 60 * 60 * 1000,
   gapMinMs: 60 * 60 * 1000,
+  gapBboxEdgeBufferM: 10_000,
   impossibleSpeedKn: 50,
   teleportMaxGapMs: 10 * 60 * 1000,
   dragMaxSogKn: 3,
