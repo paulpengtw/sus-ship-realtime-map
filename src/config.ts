@@ -23,6 +23,7 @@ export const CONFIG = {
   ] as Region[],
   corridorBufferM: 1000,
   stationaryMaxSogKn: 0.5,
+  minSogForCogKn: 2,
   loiterMaxSogKn: 2,
   loiterMinMs: 2 * 60 * 60 * 1000,
   gapMinMs: 60 * 60 * 1000,
