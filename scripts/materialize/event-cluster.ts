@@ -1,5 +1,14 @@
-// scripts/materialize/event-cluster.ts — Task 10 fills this in.
+// scripts/materialize/event-cluster.ts (spec §3b, source=event_cluster).
+import { candidatesFromEventClusters } from "../../src/materialize-server";
 import type { CandidateIncident } from "../../src/labeling";
-export async function materializeEventClusters(_: { origin: string; now: number; lookbackMs: number }): Promise<CandidateIncident[]> {
-  throw new Error("not implemented — Task 10");
+
+const BUCKET_MS = 30 * 60_000;
+const MIN_EVENTS = 3;
+
+export async function materializeEventClusters(deps: { origin: string; now: number; lookbackMs: number }): Promise<CandidateIncident[]> {
+  const since = deps.now - deps.lookbackMs;
+  const res = await fetch(`${deps.origin}/api/labels/materialize/event-clusters?since=${since}&until=${deps.now}`);
+  if (!res.ok) throw new Error(`fetch event-clusters failed: ${res.status}`);
+  const { events, assessmentWindows } = await res.json() as { events: any[]; assessmentWindows: any[] };
+  return candidatesFromEventClusters(events, assessmentWindows, BUCKET_MS, MIN_EVENTS, deps.now);
 }

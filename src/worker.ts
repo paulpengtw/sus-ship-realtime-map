@@ -273,6 +273,66 @@ export default {
       }
     }
 
+    if (url.pathname === "/api/labels/materialize/assessments") {
+      const since = Number(url.searchParams.get("since") ?? 0);
+      const until = Number(url.searchParams.get("until") ?? now);
+      if (!Number.isFinite(since) || !Number.isFinite(until)) return json({ error: "bad range" }, 400);
+      const { results } = await env.DB.prepare(
+        `SELECT id, mmsi, opened_ts, closed_ts, category, confidence, region
+         FROM assessments WHERE opened_ts >= ?1 AND opened_ts <= ?2 ORDER BY opened_ts ASC`,
+      ).bind(since, until).all<any>();
+      return json({ generatedAt: now, rows: results });
+    }
+
+    if (url.pathname === "/api/labels/materialize/event-clusters") {
+      const since = Number(url.searchParams.get("since") ?? 0);
+      const until = Number(url.searchParams.get("until") ?? now);
+      if (!Number.isFinite(since) || !Number.isFinite(until)) return json({ error: "bad range" }, 400);
+      const [events, assessments] = await env.DB.batch([
+        env.DB.prepare(`SELECT id, mmsi, start_ts, type FROM events WHERE start_ts BETWEEN ?1 AND ?2`).bind(since, until),
+        env.DB.prepare(`SELECT opened_ts, closed_ts FROM assessments WHERE opened_ts BETWEEN ?1 AND ?2`).bind(since, until),
+      ]);
+      const assessmentWindows = (assessments.results as any[]).map((r) => ({
+        tStart: r.opened_ts, tEnd: r.closed_ts ?? now,
+      }));
+      return json({ generatedAt: now, events: events.results, assessmentWindows });
+    }
+
+    if (url.pathname === "/api/labels/materialize/random-negatives") {
+      const since = Number(url.searchParams.get("since") ?? 0);
+      const until = Number(url.searchParams.get("until") ?? now);
+      if (!Number.isFinite(since) || !Number.isFinite(until)) return json({ error: "bad range" }, 400);
+      const [vesselDays, assessments, events] = await env.DB.batch([
+        env.DB.prepare(`
+          SELECT v.mmsi AS vessel_id,
+                 CAST((p.ts / 86400000) AS INTEGER) * 86400000 AS day_ms,
+                 COUNT(p.ts) AS positions
+          FROM positions p JOIN vessels v ON v.mmsi = p.mmsi
+          WHERE p.ts BETWEEN ?1 AND ?2
+          GROUP BY v.mmsi, day_ms HAVING positions >= 20`).bind(since, until),
+        env.DB.prepare(`SELECT opened_ts, closed_ts FROM assessments WHERE opened_ts BETWEEN ?1 AND ?2`).bind(since, until),
+        env.DB.prepare(`SELECT DISTINCT mmsi, CAST((start_ts / 86400000) AS INTEGER) * 86400000 AS day_ms FROM events WHERE start_ts BETWEEN ?1 AND ?2`).bind(since, until),
+      ]);
+      const eventDays = new Set((events.results as any[]).map((e) => `${e.mmsi}:${e.day_ms}`));
+      const eligibleDays = (vesselDays.results as any[])
+        .filter((r) => !eventDays.has(`${r.vessel_id}:${r.day_ms}`))
+        .map((r) => ({ vessel_id: String(r.vessel_id), day_ms: Number(r.day_ms) }));
+      const skipWindows = (assessments.results as any[]).map((r) => ({ tStart: r.opened_ts, tEnd: r.closed_ts ?? now }));
+      return json({ generatedAt: now, vesselDays: eligibleDays, skipWindows });
+    }
+
+    if (url.pathname === "/api/labels/materialize" && req.method === "POST") {
+      let body: any;
+      try { body = await req.json(); } catch { return json({ error: "bad json" }, 400); }
+      const candidates = body?.candidates as any[] | undefined;
+      if (!Array.isArray(candidates)) return json({ error: "candidates required" }, 400);
+      const { SHARED_INSERT_SQL, toInsertRow } = await import("./materializer");
+      const stmts = candidates.map((c) => env.DB.prepare(SHARED_INSERT_SQL).bind(...toInsertRow(c)));
+      const results = stmts.length ? await env.DB.batch(stmts) : [];
+      const inserted = results.reduce((a: number, r: any) => a + (r.meta?.changes ?? 0), 0);
+      return json({ ok: true, inserted });
+    }
+
     const trackMatch = /^\/api\/vessel\/(\d{1,9})\/track$/.exec(url.pathname);
     if (trackMatch) {
       const mmsi = Number(trackMatch[1]);
