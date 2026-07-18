@@ -3,7 +3,7 @@ import type { DayBucket } from "./api";
 import { getRegion, onRegionChange } from "./regions";
 import { onStats } from "./stats";
 
-const SEV_COLOR = ["#8b96a5", "#8b96a5", "#f0a83c", "#e5484d", "#e5484d"];
+const CAT_COLOR = ["#e5484d", "#b18cff", "#f0a83c", "#4cc3ff"]; // THREAT_CATEGORIES order
 const W = 276, H = 36, GAP = 2;
 
 let buckets: DayBucket[] = [];
@@ -27,14 +27,14 @@ function render(): void {
   buckets.forEach((b, i) => {
     const x = i * (bw + GAP);
     let y = H;
-    b.counts.forEach((c, sev) => {
+    b.counts.forEach((c, idx) => {
       if (!c) return;
       const h = (c / max) * (H - 2);
       y -= h;
-      bars += `<rect x="${x}" y="${y}" width="${bw}" height="${h}" fill="${SEV_COLOR[sev]}" rx="1"></rect>`;
+      bars += `<rect x="${x}" y="${y}" width="${bw}" height="${h}" fill="${CAT_COLOR[idx]}" rx="1"></rect>`;
     });
     if (b.day === selected) bars += `<rect class="selected-outline" x="${x - 0.5}" y="0.5" width="${bw + 1}" height="${H - 1}" rx="2"></rect>`;
-    bars += `<rect class="day-hit" data-day="${b.day}" x="${x}" y="0" width="${bw}" height="${H}"><title>${b.day}: ${b.counts.reduce((a, c) => a + c, 0)} events</title></rect>`;
+    bars += `<rect class="day-hit" data-day="${b.day}" x="${x}" y="0" width="${bw}" height="${H}"><title>${b.day}: ${b.counts.reduce((a, c) => a + c, 0)} assessments</title></rect>`;
   });
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}</svg>` +
     `<div class="tl-caption"><span>${buckets[0].day.slice(5)}</span><span>${selected ? `filtering ${selected} · click again to clear` : "last 14 days"}</span><span>${buckets[13].day.slice(5)}</span></div>`;

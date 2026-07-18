@@ -12,13 +12,19 @@ export interface CorridorHit { name: string; distanceM: number }
 export interface LaneHit { name: string; distanceM: number }
 
 export class GeoContext {
+  private laneLines: LineFeature[];
+  private laneCoverage: PolyFeature[];
+
   constructor(
     private cables: FC<LineFeature> = cablesData as unknown as FC<LineFeature>,
     private exclusions: FC<PolyFeature> = exclusionsData as unknown as FC<PolyFeature>,
     private bufferM: number = CONFIG.corridorBufferM,
-    private lanes: FC<LineFeature> = lanesData as unknown as FC<LineFeature>,
+    lanes: FC<LineFeature | PolyFeature> = lanesData as unknown as FC<LineFeature | PolyFeature>,
     private laneBufferM: number = CONFIG.laneBufferM,
-  ) {}
+  ) {
+    this.laneLines = lanes.features.filter((f): f is LineFeature => f.geometry.type === "LineString");
+    this.laneCoverage = lanes.features.filter((f): f is PolyFeature => f.geometry.type === "Polygon");
+  }
 
   nearestCorridor(p: LngLat): CorridorHit | null {
     let best: CorridorHit | null = null;
@@ -40,7 +46,7 @@ export class GeoContext {
 
   nearestLane(p: LngLat): LaneHit | null {
     let best: LaneHit | null = null;
-    for (const f of this.lanes.features) {
+    for (const f of this.laneLines) {
       const d = pointToPolylineM(p, f.geometry.coordinates);
       if (!best || d < best.distanceM) best = { name: f.properties.name, distanceM: d };
     }
@@ -50,5 +56,10 @@ export class GeoContext {
   inLane(p: LngLat): boolean {
     const hit = this.nearestLane(p);
     return hit !== null && hit.distanceM <= this.laneBufferM;
+  }
+
+  // Lane opinion is only valid where we actually have lane data (spec §3c).
+  inLaneCoverage(p: LngLat): boolean {
+    return this.laneCoverage.some((f) => pointInPolygon(p, f.geometry.coordinates[0]));
   }
 }

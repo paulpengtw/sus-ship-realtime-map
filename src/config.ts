@@ -22,19 +22,29 @@ export const CONFIG = {
       center: [135.5, 34.5], zoom: 5.8 },
   ] as Region[],
   corridorBufferM: 1000,
+  stationaryMaxSogKn: 0.5,
+  minSogForCogKn: 2,
   loiterMaxSogKn: 2,
   loiterMinMs: 2 * 60 * 60 * 1000,
   gapMinMs: 60 * 60 * 1000,
+  gapBboxEdgeBufferM: 10_000,
+  gapMinPriorMessages: 5,
+  gapCadenceWindowMs: 3_600_000,
   impossibleSpeedKn: 50,
   teleportMaxGapMs: 10 * 60 * 1000,
   dragMaxSogKn: 3,
   dragMinSogKn: 0.3,
   dragWindow: 10,
   dragMinCogStdDeg: 40,
+  dragMinDisplacementM: 150,
   dragCooldownMs: 60 * 60 * 1000,
   ringSize: 120,
   identityHistorySize: 20,
   scoreHalfLifeMs: 24 * 60 * 60 * 1000,
+  assessmentOpenScore: 0.6,
+  assessmentCloseScore: 0.2,
+  assessmentCloseAfterMs: 43_200_000,
+  darkRepositionMinM: 9_260,
   persistMinIntervalMs: 5 * 60 * 1000,
   persistMinMoveM: 100,
   // Tiered position retention (trajectories spec §1): ≤48 h raw, then 1 pt/10 min to 30 d, 1 pt/h to 180 d.
@@ -44,8 +54,7 @@ export const CONFIG = {
   ],
   snapshotWindowMs: 60 * 60 * 1000,
   // Trajectories (spec §2)
-  susScoreThreshold: 2,      // decayed score at/above which a vessel's trajectory is always drawn
-  trajectoryMaxVessels: 50,  // top-N by decayed score in /api/trajectories
+  trajectoryMaxVessels: 50,  // top-N by max open-assessment confidence in /api/trajectories
   trajectoryMaxPoints: 500,  // per-vessel point cap (server-side decimation)
   staleAfterMs: 5 * 60 * 1000,
   alarmIntervalMs: 30 * 1000,

@@ -16,7 +16,7 @@ function render(): void {
   if (!s) { el.hidden = true; return; }
   el.hidden = false;
   el.innerHTML = `<span><b>${s.vessels}</b> vessels tracked</span>` +
-    `<span><b>${s.activeAlerts}</b> active alerts</span>` +
+    `<span><b>${s.activeAlerts}</b> open assessments</span>` +
     `<span><b>${s.events24h}</b> events / 24 h</span>`;
 }
 

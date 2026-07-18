@@ -13,7 +13,7 @@ const MID: Record<string, string> = {
 // ITU callsign prefix → ISO country, same subset. First match on 2-char then 1-char prefix.
 const CALLSIGN: Record<string, string> = {
   "BV": "TW", "BM": "TW", "BN": "TW", "BO": "TW", "BQ": "TW",
-  "B": "CN", "3E": "PA", "3F": "PA", "H3": "PA", "H8": "PA", "H9": "PA", "HO": "PA", "HP": "PA",
+  "3E": "PA", "3F": "PA", "H3": "PA", "H8": "PA", "H9": "PA", "HO": "PA", "HP": "PA",
   "9V": "SG", "HL": "KR", "DS": "KR", "JA": "JP", "7J": "JP", "UA": "RU", "T8": "PW",
   "V3": "BZ", "TR": "GA", "T2": "TV", "XV": "VN", "9M": "MY",
 };
@@ -30,8 +30,13 @@ export function callsignCountry(callsign: string): string | null {
 
 export function identityOnStatic(s: VesselState, ident: AisIdentity, cfg: Config): AnomalyEvent[] {
   const out: AnomalyEvent[] = [];
+  const real = (v: string) => { const t = v.trim(); return t !== "" && t !== "0"; };
   const prev = s.identities.length ? s.identities[s.identities.length - 1] : null;
-  const changed = prev !== null && (prev.name !== ident.name || prev.callsign !== ident.callsign);
+  const rawChanged = prev !== null && (prev.name !== ident.name || prev.callsign !== ident.callsign);
+  const changed = prev !== null && (
+    (real(prev.name) && real(ident.name) && prev.name !== ident.name) ||
+    (real(prev.callsign) && real(ident.callsign) && prev.callsign !== ident.callsign)
+  );
 
   if (changed) {
     out.push({
@@ -44,7 +49,7 @@ export function identityOnStatic(s: VesselState, ident: AisIdentity, cfg: Config
     });
   }
 
-  if (prev === null || changed) {
+  if (prev === null || rawChanged) {
     s.identities.push(ident);
     if (s.identities.length > cfg.identityHistorySize) s.identities.shift();
 

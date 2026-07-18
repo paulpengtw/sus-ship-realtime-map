@@ -8,7 +8,10 @@ import { routeOnMessage } from "../src/detectors/route";
 const cables = { type: "FeatureCollection", features: [{ type: "Feature", properties: { name: "C1", approximate: true }, geometry: { type: "LineString", coordinates: [[120.0, 22.0], [121.0, 22.0]] } }] };
 const noExcl = { type: "FeatureCollection", features: [] };
 const exclWithZone = { type: "FeatureCollection", features: [{ type: "Feature", properties: { name: "PORT" }, geometry: { type: "Polygon", coordinates: [[[118.9, 24.9], [119.1, 24.9], [119.1, 25.1], [118.9, 25.1], [118.9, 24.9]]] } }] };
-const lanes = { type: "FeatureCollection", features: [{ type: "Feature", properties: { name: "MAIN-LANE" }, geometry: { type: "LineString", coordinates: [[119.5, 23.0], [120.5, 23.0]] } }] };
+const lanes = { type: "FeatureCollection", features: [
+  { type: "Feature", properties: { name: "MAIN-LANE" }, geometry: { type: "LineString", coordinates: [[119.5, 23.0], [120.5, 23.0]] } },
+  { type: "Feature", properties: { name: "coverage" }, geometry: { type: "Polygon", coordinates: [[[118.5, 21.5], [121.5, 21.5], [121.5, 25.5], [118.5, 25.5], [118.5, 21.5]]] } },
+] };
 const T0 = 1_750_000_000_000;
 const MIN = 60_000;
 
@@ -134,5 +137,53 @@ describe("route deviation detector", () => {
     const positions2 = cogs.map((cog, i) => pos(9, 120.2, 22.5, 8, cog, 90 + i * 1));
     const evs2 = feedPositions(s, positions2, geo);
     expect(evs2).toHaveLength(0);
+  });
+
+  it("anchored vessel with COG jitter does NOT fire course_reversals", () => {
+    const s = newVesselState(20, T0);
+    const geo = makeGeo();
+    const cogs = [0, 180, 0, 180, 0, 180, 0, 180, 0, 180, 0, 180, 0, 180, 0];
+    const positions = cogs.map((cog, i) => {
+      const p = pos(20, 120.2, 22.5, 0.3, cog, i * 5);
+      p.navStatus = 1; // at anchor
+      return p;
+    });
+    expect(feedPositions(s, positions, geo)).toHaveLength(0);
+  });
+
+  it("low-SOG COG pairs are skipped (drifting jitter, no navStatus)", () => {
+    const s = newVesselState(21, T0);
+    const geo = makeGeo();
+    // sog 1 kn < minSogForCogKn — COG is compass noise
+    const cogs = [0, 180, 0, 180, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90];
+    const positions = cogs.map((cog, i) => pos(21, 120.2, 22.5, 1, cog, i * 5));
+    expect(feedPositions(s, positions, geo).filter((e: any) => e.evidence.kind === "course_reversals")).toHaveLength(0);
+  });
+
+  it("course reversals inside an exclusion zone do NOT fire (harbor maneuvering)", () => {
+    const s = newVesselState(22, T0);
+    const geo = makeGeo(exclWithZone);
+    const cogs = [0, 180, 0, 180, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90];
+    const positions = cogs.map((cog, i) => pos(22, 119.0, 25.0, 8, cog, i * 5)); // inside PORT polygon
+    expect(feedPositions(s, positions, geo)).toHaveLength(0);
+  });
+
+  it("slow circling (drift with current) does NOT fire circling", () => {
+    const s = newVesselState(23, T0);
+    const geo = makeGeo();
+    const cx = 120.3, cy = 22.5, r = 0.003;
+    const positions = Array.from({ length: 10 }, (_, i) => {
+      const angle = (i / 10) * 2 * Math.PI;
+      return pos(23, cx + r * Math.cos(angle), cy + r * Math.sin(angle), 1, (i * 36) % 360, i * 5);
+    });
+    expect(feedPositions(s, positions, geo).filter((e: any) => e.evidence.kind === "circling")).toHaveLength(0);
+  });
+
+  it("cargo vessel outside lane coverage does NOT fire lane_deviation (Tokyo Bay regression)", () => {
+    const s = newVesselState(24, T0);
+    s.shipType = 70;
+    const geo = makeGeo();
+    const positions = Array.from({ length: 6 }, (_, i) => pos(24, 139.7 + i * 0.001, 35.4, 10, 90, i * 5));
+    expect(feedPositions(s, positions, geo).filter((e: any) => e.evidence.kind === "lane_deviation")).toHaveLength(0);
   });
 });

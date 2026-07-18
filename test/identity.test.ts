@@ -60,4 +60,30 @@ describe("identity detector", () => {
     const p: AisPosition = { mmsi: 10, lon: 120.01, lat: 22.0, sog: 10, cog: 90, heading: 90, ts: T0 + 3 * 60_000 };
     expect(teleportOnMessage(s, p, CONFIG)).toHaveLength(0);
   });
+
+  it("Taiwanese BP/BR callsigns are unknown, not China (Keelung pilot-boat regression)", () => {
+    expect(callsignCountry("BP3085")).toBeNull();
+    expect(callsignCountry("BR3427")).toBeNull();
+    expect(callsignCountry("BV1234")).toBe("TW"); // unambiguous 2-char prefixes still resolve
+    const s = newVesselState(416006655, T0);
+    const evs = identityOnStatic(s, id(416006655, "YONG AN", "BP3085", 0), CONFIG);
+    expect(evs).toHaveLength(0);
+  });
+
+  it("placeholder callsign '0' → real callsign is not an identity change", () => {
+    const s = newVesselState(416006655, T0);
+    identityOnStatic(s, id(416006655, "PILOT BOAT", "0", 0), CONFIG);
+    const evs = identityOnStatic(s, id(416006655, "PILOT BOAT", "BP3085", 60), CONFIG);
+    expect(evs).toHaveLength(0);
+    expect(s.identities).toHaveLength(2); // raw history still updated
+  });
+
+  it("empty name → real name is not an identity change; real → real still fires", () => {
+    const s = newVesselState(412111111, T0);
+    identityOnStatic(s, id(412111111, "", "BXYZ1", 0), CONFIG);
+    expect(identityOnStatic(s, id(412111111, "SHUNXIN 39", "BXYZ1", 30), CONFIG)).toHaveLength(0);
+    const evs = identityOnStatic(s, id(412111111, "XINGSHUN 39", "BXYZ1", 60), CONFIG);
+    expect(evs).toHaveLength(1);
+    expect(evs[0].evidence).toMatchObject({ kind: "identity_change", prevName: "SHUNXIN 39", newName: "XINGSHUN 39" });
+  });
 });

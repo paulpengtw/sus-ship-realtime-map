@@ -10,6 +10,7 @@ describe("/api/stats", () => {
   beforeEach(async () => {
     await env.DB.batch([
       env.DB.prepare("DELETE FROM vessels"), env.DB.prepare("DELETE FROM events"),
+      env.DB.prepare("DELETE FROM assessments"),
       env.DB.prepare(`INSERT INTO vessels (mmsi, name, callsign, last_lon, last_lat, last_sog, last_cog, last_ts, score, score_ts, region)
                       VALUES (440000001, 'KR', NULL, 129.3, 34.7, 1, 0, ?1, 0, ?1, 'kr')`).bind(T0),
       env.DB.prepare(`INSERT INTO vessels (mmsi, name, callsign, last_lon, last_lat, last_sog, last_cog, last_ts, score, score_ts, region)
@@ -17,9 +18,11 @@ describe("/api/stats", () => {
       env.DB.prepare(`INSERT INTO events (id, type, severity, mmsi, lon, lat, start_ts, end_ts, evidence, region)
                       VALUES ('open-kr', 'loitering', 3, 440000001, 129.3, 34.7, ?1, NULL, '{}', 'kr')`).bind(T0),
       env.DB.prepare(`INSERT INTO events (id, type, severity, mmsi, lon, lat, start_ts, end_ts, evidence, region)
-                      VALUES ('old-kr', 'ais_gap', 5, 440000001, 129.3, 34.7, ?1, ?1, '{}', 'kr')`).bind(NOW - 3 * DAY),
-      env.DB.prepare(`INSERT INTO events (id, type, severity, mmsi, lon, lat, start_ts, end_ts, evidence, region)
                       VALUES ('null-region', 'ais_gap', 2, 1, 0, 0, ?1, NULL, '{}', NULL)`).bind(T0),
+      env.DB.prepare(`INSERT INTO assessments (id, mmsi, category, status, confidence, opened_ts, updated_ts, closed_ts, region, narrative, evidence)
+                      VALUES ('dark_activity-440000001-1', 440000001, 'dark_activity', 'open', 0.4, ?1, ?1, NULL, 'kr', 'x', '[]')`).bind(T0),
+      env.DB.prepare(`INSERT INTO assessments (id, mmsi, category, status, confidence, opened_ts, updated_ts, closed_ts, region, narrative, evidence)
+                      VALUES ('cable_interference-440000001-1', 440000001, 'cable_interference', 'closed', 0.1, ?1, ?1, ?1, 'kr', 'x', '[]')`).bind(NOW - 3 * DAY),
     ]);
   });
 
@@ -33,11 +36,11 @@ describe("/api/stats", () => {
 
     const kr = body.histogram.kr;
     expect(kr).toHaveLength(14);
-    expect(kr.every((b: any) => /^\d{4}-\d{2}-\d{2}$/.test(b.day) && b.counts.length === 5)).toBe(true);
+    expect(kr.every((b: any) => /^\d{4}-\d{2}-\d{2}$/.test(b.day) && b.counts.length === 4)).toBe(true);
     const t0Day = new Date(T0).toISOString().slice(0, 10);
-    expect(kr.find((b: any) => b.day === t0Day)!.counts[2]).toBe(1);
+    expect(kr.find((b: any) => b.day === t0Day)!.counts[1]).toBe(1);      // dark_activity index 1
     const threeAgo = new Date(NOW - 3 * DAY).toISOString().slice(0, 10);
-    expect(kr.find((b: any) => b.day === threeAgo)!.counts[4]).toBe(1);
+    expect(kr.find((b: any) => b.day === threeAgo)!.counts[0]).toBe(1);   // cable_interference index 0
     expect(body.histogram.jp).toHaveLength(14);
   });
 });

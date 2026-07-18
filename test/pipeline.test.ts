@@ -18,15 +18,15 @@ describe("Tracker pipeline", () => {
     for (let m = 0; m <= 130; m += 10) evs.push(...t.handlePosition(pos(1, 120.2, 22.0, 0.5, m)));
     expect(evs.filter((e) => e.type === "loitering")).toHaveLength(1);
     const s = t.states.get(1)!;
-    expect(s.score).toBeGreaterThanOrEqual(3);
+    expect(s.categories.cable_interference.score).toBeGreaterThan(0);
     expect(s.ring.length).toBe(14);
     expect(s.lastSeen).toBe(T0 + 130 * 60_000);
   });
 
-  it("tick() opens gaps for silent vessels", () => {
+  it("tick() opens gaps for silent vessels with healthy prior cadence", () => {
     const t = new Tracker(geo, CONFIG);
-    t.handlePosition(pos(2, 120.5, 22.0, 5, 0));
-    const evs = t.tick(T0 + 90 * 60_000);
+    for (let m = 0; m <= 40; m += 10) t.handlePosition(pos(2, 120.5, 22.0, 5, m));
+    const evs = t.tick(T0 + (40 + 90) * 60_000);
     expect(evs).toHaveLength(1);
     expect(evs[0].type).toBe("ais_gap");
   });

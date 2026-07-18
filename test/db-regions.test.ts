@@ -9,7 +9,9 @@ const T0 = 1_750_000_000_000;
 function pendingWithRegion() {
   const p = newPendingWrites();
   const s = newVesselState(440000001, T0);
-  s.name = "KR SHIP"; s.callsign = "DS1234"; s.score = 2; s.scoreTs = T0; s.lastSeen = T0;
+  s.name = "KR SHIP"; s.callsign = "DS1234"; s.lastSeen = T0;
+  s.categories.cable_interference.score = 2;
+  s.categories.cable_interference.ts = T0;
   s.region = "kr"; s.shipType = 70; s.destination = "BUSAN";
   s.dimBow = 100; s.dimStern = 20; s.dimPort = 10; s.dimStarboard = 10;
   s.ring.push({ mmsi: 440000001, lon: 129.3, lat: 34.7, sog: 1, cog: 0, heading: null, ts: T0 });

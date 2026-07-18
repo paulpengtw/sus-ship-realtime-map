@@ -1,7 +1,9 @@
 // src/detectors/gap.ts
+import { lastActivity } from "../activity";
 import type { Config } from "../config";
 import type { GeoContext } from "../geo/context";
 import { haversineM, type LngLat } from "../geo/geo";
+import { nearCoverageEdge } from "../geo/regions";
 import type { AisPosition, AnomalyEvent, Severity, VesselState } from "../types";
 
 const HOUR_MS = 3_600_000;
@@ -15,6 +17,17 @@ export function gapOnTick(s: VesselState, geo: GeoContext, cfg: Config, now: num
   const lp = last(s);
   if (!lp) return [];
   if (now - s.lastSeen < cfg.gapMinMs) return [];
+
+  // Spec §3b: silence only counts when it *could* be deliberate.
+  const act = lastActivity(s, geo, cfg);
+  if (act === "moored" || act === "anchored") return [];
+  if (geo.inExclusion([lp.lon, lp.lat])) return [];
+  if (nearCoverageEdge(lp.lon, lp.lat, cfg.gapBboxEdgeBufferM)) {
+    s.leftCoverage = true;
+    return [];
+  }
+  const cadence = s.ring.filter((p) => p.ts >= s.lastSeen - cfg.gapCadenceWindowMs).length;
+  if (cadence < cfg.gapMinPriorMessages) return [];
 
   s.gapOpenSince = s.lastSeen;
   const inCorr = geo.inCorridor([lp.lon, lp.lat]);

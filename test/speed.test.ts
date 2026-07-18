@@ -118,4 +118,31 @@ describe("speed anomaly detector", () => {
     const evs = feedPositions(s, positions);
     expect(evs[0].severity).toBe(3);
   });
+
+  it("moored vessel (navStatus 5) does NOT fire even at type-mismatch speed", () => {
+    const s = newVesselState(9, T0);
+    s.shipType = 30;
+    const positions = Array.from({ length: 5 }, (_, i) => {
+      const p = pos(9, 120.2, 22.0, 15, i * 5);
+      (p as any).navStatus = 5;
+      return p;
+    });
+    expect(feedPositions(s, positions)).toHaveLength(0);
+  });
+
+  it("vessel inside an exclusion zone does NOT fire", () => {
+    const exclGeo = new GeoContext(cables as any, {
+      type: "FeatureCollection",
+      features: [{ type: "Feature", properties: { name: "PORT" }, geometry: { type: "Polygon", coordinates: [[[120.1, 21.9], [120.3, 21.9], [120.3, 22.1], [120.1, 22.1], [120.1, 21.9]]] } }],
+    } as any, 1000, noLanes as any, 5000);
+    const s = newVesselState(10, T0);
+    s.shipType = 30;
+    const positions = Array.from({ length: 5 }, (_, i) => pos(10, 120.2, 22.0, 15, i * 5));
+    const evs: any[] = [];
+    for (const p of positions) {
+      evs.push(...speedOnMessage(s, p, exclGeo, CONFIG));
+      s.ring.push(p); s.lastSeen = p.ts;
+    }
+    expect(evs).toHaveLength(0);
+  });
 });

@@ -7,7 +7,9 @@ import { getRegion, onRegionChange } from "./regions";
 import { getWindow, onWindowChange } from "./windows";
 
 const POLL_MS = 60_000; // sus set changes as events open/close; cheaper than the 15 s snapshot poll
-const SCORE_RAMP = ["interpolate", ["linear"], ["get", "score"], 0, "#aab6c8", 3, "#f0a83c", 8, "#e5484d"] as any;
+const CAT_MATCH = ["match", ["coalesce", ["get", "topCategory"], ""],
+  "cable_interference", "#e5484d", "dark_activity", "#b18cff",
+  "identity_deception", "#f0a83c", "militia_presence", "#4cc3ff", "#e5484d"] as any;
 const NO_HOVER = ["==", ["get", "mmsi"], -1] as any;
 
 async function refresh(): Promise<void> {
@@ -18,7 +20,7 @@ async function refresh(): Promise<void> {
       features: res.trajectories.map((t) => ({
         type: "Feature",
         geometry: { type: "LineString", coordinates: t.points.map((p) => [p[0], p[1]]) },
-        properties: { mmsi: t.mmsi, name: t.name ?? `MMSI ${t.mmsi}`, score: t.score, topType: t.topType },
+        properties: { mmsi: t.mmsi, name: t.name ?? `MMSI ${t.mmsi}`, confidence: t.confidence, topCategory: t.topCategory },
       })),
     } as any);
   } catch (err) {
@@ -31,10 +33,13 @@ export function initTrajectories(onSelect: (mmsi: number) => void): void {
 
   // Thin semi-transparent lines under the live traffic; hover layer re-draws one line bold.
   map.addLayer({ id: "sus-trajectories", type: "line", source: "sus-trajectories",
-    paint: { "line-color": SCORE_RAMP, "line-width": 1.5, "line-opacity": 0.55 } }, "vessels-dot");
+    paint: {
+      "line-color": CAT_MATCH, "line-width": 1.5,
+      "line-opacity": ["interpolate", ["linear"], ["get", "confidence"], 0.2, 0.35, 1, 0.8],
+    } }, "vessels-dot");
   map.addLayer({ id: "sus-trajectories-hover", type: "line", source: "sus-trajectories",
     filter: NO_HOVER,
-    paint: { "line-color": SCORE_RAMP, "line-width": 3, "line-opacity": 0.95 } }, "vessels-dot");
+    paint: { "line-color": CAT_MATCH, "line-width": 3, "line-opacity": 0.95 } }, "vessels-dot");
 
   const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
   map.on("mousemove", "sus-trajectories", (e) => {
