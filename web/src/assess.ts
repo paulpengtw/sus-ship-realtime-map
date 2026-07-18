@@ -14,7 +14,7 @@ export const CATEGORY_COLOR: Record<string, string> = {
 
 export const confidencePct = (c: number): string => `${Math.round(c * 100)}%`;
 
-const esc = (s: unknown) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
+export const esc = (s: unknown) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 const fmtTime = (ts: number) => new Date(ts).toISOString().replace("T", " ").slice(0, 16) + "Z";
 
 export function renderAssessmentItem(a: Assessment): string {

@@ -36,7 +36,7 @@ describe("/api/labels/materialize (POST) is idempotent", () => {
 
   it("inserts new candidates and ignores duplicates", async () => {
     const c = {
-      id: "hash-abc", vesselId: "416000001", tStart: 1, tEnd: 2,
+      id: "abcdef0123456789", vesselId: "416000001", tStart: 1, tEnd: 2,
       source: "assessment", sourceRef: "a-1", createdAt: 3, modelSnapshot: {}, eventIds: [],
     };
     const post = async () => (await SELF.fetch("https://x/api/labels/materialize", {

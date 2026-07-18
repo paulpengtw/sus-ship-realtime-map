@@ -1,6 +1,7 @@
 // web/src/review.ts — Review-mode UI (spec §3c).
 import maplibregl from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
+import { esc } from "./assess";
 import { map } from "./main";
 import {
   fetchLabelQueue, fetchLabelStats, fetchVessel, fetchVesselTrackRange, postLabel,
@@ -36,7 +37,7 @@ async function renderReplay(c: ApiCandidate): Promise<void> {
     fetchVesselTrackRange(Number(c.vesselId), c.tStart, c.tEnd),
     fetchVessel(Number(c.vesselId)),
   ]);
-  const inWindow = (e: ApiEvent) => e.startTs >= c.tStart && (e.endTs ?? e.startTs) <= c.tEnd;
+  const inWindow = (e: ApiEvent) => e.startTs <= c.tEnd && (e.endTs ?? c.tEnd) >= c.tStart;
   const events = dossier.events.filter(inWindow);
   (map.getSource("review-track") as GeoJSONSource).setData(
     track.points.length > 1
@@ -64,18 +65,18 @@ function renderForm(c: ApiCandidate): void {
   const labeler = localStorage.getItem("reviewLabeler") ?? "";
   body.innerHTML = `
     <h2>Label incident</h2>
-    <div>MMSI ${c.vesselId} · ${new Date(c.tStart).toISOString().slice(0, 16).replace("T", " ")}Z → ${new Date(c.tEnd).toISOString().slice(0, 16).replace("T", " ")}Z</div>
-    <div>Source: ${c.source} ${c.sourceRef ? `(${c.sourceRef})` : ""}</div>
+    <div>MMSI ${esc(c.vesselId)} · ${new Date(c.tStart).toISOString().slice(0, 16).replace("T", " ")}Z → ${new Date(c.tEnd).toISOString().slice(0, 16).replace("T", " ")}Z</div>
+    <div>Source: ${esc(c.source)} ${c.sourceRef ? `(${esc(c.sourceRef)})` : ""}</div>
     <form id="review-form">
-      <label>Labeler <input name="labeler" required value="${labeler}"></label>
+      <label>Labeler <input name="labeler" required value="${esc(labeler)}"></label>
       <fieldset><legend>Verdict</legend>
         ${["threat", "suspicious", "benign", "unclear"].map((v) =>
-          `<label><input type="radio" name="verdict" value="${v}" required> ${v}</label>`).join("")}
+          `<label><input type="radio" name="verdict" value="${esc(v)}" required> ${esc(v)}</label>`).join("")}
       </fieldset>
       <fieldset id="intent-fs" disabled>
         <legend>Intent categories</legend>
         ${Object.entries(INTENT_LABELS).map(([k, v]) =>
-          `<label><input type="checkbox" name="intent" value="${k}"> ${v}</label>`).join("")}
+          `<label><input type="checkbox" name="intent" value="${esc(k)}"> ${esc(v)}</label>`).join("")}
       </fieldset>
       <label>Confidence
         <input type="range" name="confidence" min="1" max="5" value="3">
@@ -122,17 +123,21 @@ function renderForm(c: ApiCandidate): void {
 
 async function renderQueue(): Promise<void> {
   const list = document.getElementById("event-list")!;
-  const stats = await fetchLabelStats();
+  const [stats, perSource] = await Promise.all([
+    fetchLabelStats(),
+    Promise.all(SOURCES.map((s) => fetchLabelQueue(s, 10))),
+  ]);
   const parts: string[] = [];
-  for (const s of SOURCES) {
+  for (let i = 0; i < SOURCES.length; i++) {
+    const s = SOURCES[i];
     const { total, labeled } = stats.bySource[s];
-    const { candidates } = await fetchLabelQueue(s, 10);
+    const { candidates } = perSource[i];
     parts.push(
-      `<li class="review-header"><b>${SOURCE_LABEL[s]}</b> ${labeled}/${total}</li>`,
+      `<li class="review-header"><b>${esc(SOURCE_LABEL[s])}</b> ${labeled}/${total}</li>`,
       ...candidates.map((c) => `
-        <li data-incident="${c.id}" data-mmsi="${c.vesselId}" data-tstart="${c.tStart}" data-tend="${c.tEnd}" class="review-row">
-          MMSI ${c.vesselId} · ${new Date(c.tStart).toISOString().slice(0, 16).replace("T", " ")}Z
-          <span class="review-source">${SOURCE_LABEL[s]}</span>
+        <li data-incident="${esc(c.id)}" data-mmsi="${esc(c.vesselId)}" data-tstart="${c.tStart}" data-tend="${c.tEnd}" class="review-row">
+          MMSI ${esc(c.vesselId)} · ${new Date(c.tStart).toISOString().slice(0, 16).replace("T", " ")}Z
+          <span class="review-source">${esc(SOURCE_LABEL[s])}</span>
         </li>`),
     );
   }

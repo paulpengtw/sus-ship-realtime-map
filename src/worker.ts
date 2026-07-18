@@ -326,6 +326,16 @@ export default {
       try { body = await req.json(); } catch { return json({ error: "bad json" }, 400); }
       const candidates = body?.candidates as any[] | undefined;
       if (!Array.isArray(candidates)) return json({ error: "candidates required" }, 400);
+      if (candidates.length > 100) return json({ error: "too many candidates (max 100)" }, 400);
+      for (const c of candidates) {
+        if (typeof c?.id !== "string" || !/^[0-9a-f]{16}$/.test(c.id)) return json({ error: "bad candidate: id" }, 400);
+        if (typeof c.vesselId !== "string" || !/^\d{1,9}$/.test(c.vesselId)) return json({ error: "bad candidate: vesselId" }, 400);
+        if (!Number.isInteger(c.tStart) || !Number.isInteger(c.tEnd) || c.tStart >= c.tEnd) return json({ error: "bad candidate: window" }, 400);
+        if (!(LABEL_SOURCES as readonly string[]).includes(c.source)) return json({ error: "bad candidate: source" }, 400);
+        if (c.sourceRef !== null && (typeof c.sourceRef !== "string" || c.sourceRef.length > 200)) return json({ error: "bad candidate: sourceRef" }, 400);
+        if (!Number.isInteger(c.createdAt) || c.createdAt < 0) return json({ error: "bad candidate: createdAt" }, 400);
+        if (!Array.isArray(c.eventIds) || !c.eventIds.every((e: unknown) => typeof e === "string" && e.length <= 100)) return json({ error: "bad candidate: eventIds" }, 400);
+      }
       const { SHARED_INSERT_SQL, toInsertRow } = await import("./materializer");
       const stmts = candidates.map((c) => env.DB.prepare(SHARED_INSERT_SQL).bind(...toInsertRow(c)));
       const results = stmts.length ? await env.DB.batch(stmts) : [];
