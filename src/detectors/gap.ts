@@ -23,7 +23,6 @@ export function gapOnTick(s: VesselState, geo: GeoContext, cfg: Config, now: num
   if (act === "moored" || act === "anchored") return [];
   if (geo.inExclusion([lp.lon, lp.lat])) return [];
   if (nearCoverageEdge(lp.lon, lp.lat, cfg.gapBboxEdgeBufferM)) {
-    s.leftCoverage = true;
     return [];
   }
   const cadence = s.ring.filter((p) => p.ts >= s.lastSeen - cfg.gapCadenceWindowMs).length;

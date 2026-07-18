@@ -71,7 +71,6 @@ export interface VesselState {
   loiterStart: number | null;
   loiterReported: boolean;
   gapOpenSince: number | null;
-  leftCoverage: boolean;
   dragReportedTs: number | null;
   lastSpeedEventTs: number | null;
   lastRouteEventTs: number | null;
@@ -87,7 +86,7 @@ export function newVesselState(mmsi: number, now: number): VesselState {
     ring: [], identities: [],
     lastSeen: now,
     loiterStart: null, loiterReported: false,
-    gapOpenSince: null, leftCoverage: false, dragReportedTs: null,
+    gapOpenSince: null, dragReportedTs: null,
     lastSpeedEventTs: null, lastRouteEventTs: null,
     categories: {
       cable_interference: newCategoryState(now),

@@ -68,10 +68,9 @@ describe("AIS gap detector", () => {
     expect(gapOnTick(s, geo, CONFIG, T0 + 2 * HOUR)).toHaveLength(0);
   });
 
-  it("does NOT open near the outer coverage edge; marks leftCoverage", () => {
+  it("does NOT open near the outer coverage edge", () => {
     const s = seed(7, 118.05, 22.0); // ~5 km from tw minLon 118.0
     expect(gapOnTick(s, geo, CONFIG, T0 + 2 * HOUR)).toHaveLength(0);
-    expect(s.leftCoverage).toBe(true);
   });
 
   it("does NOT open when prior cadence was sparse (reception was already bad)", () => {
