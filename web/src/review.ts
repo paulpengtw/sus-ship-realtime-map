@@ -102,11 +102,12 @@ function renderForm(c: ApiCandidate): void {
     if (!labelerVal) return;
     localStorage.setItem("reviewLabeler", labelerVal);
     const intents = (fd.getAll("intent") as string[]).filter(Boolean);
+    const notes = String(fd.get("notes") ?? "").trim();
     const submitBody: PostLabelBody = {
       incidentId: c.id, labeler: labelerVal, verdict,
       labelerConfidence: Number(fd.get("confidence")),
-      notes: String(fd.get("notes") ?? ""),
     };
+    if (notes.length > 0) submitBody.notes = notes;
     if (verdict === "threat" || verdict === "suspicious") submitBody.intentCategories = intents;
     const res = await postLabel(submitBody);
     if ("error" in res) { alert(`save failed: ${res.error}`); return; }
