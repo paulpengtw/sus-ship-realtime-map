@@ -23,7 +23,7 @@ export function parseAisStreamMessage(raw: unknown): { pos?: AisPosition; ident?
       const lat = Number(r.MetaData.latitude), lon = Number(r.MetaData.longitude);
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
       const heading = Number(pr.TrueHeading);
-      const ns = Number(pr.NavigationalStatus);
+      const ns = pr.NavigationalStatus == null ? NaN : Number(pr.NavigationalStatus);
       return {
         pos: {
           mmsi, lon, lat,

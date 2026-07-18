@@ -69,4 +69,14 @@ describe("aisstream parsing", () => {
     expect(parseAisStreamMessage({ MessageType: "PositionReport" })).toBeNull();
     expect(parseAisStreamMessage("garbage")).toBeNull();
   });
+
+  it("parseAisStreamMessage: null NavigationalStatus → navStatus is null (not 0)", () => {
+    const raw = {
+      MessageType: "PositionReport",
+      MetaData: { MMSI: 123, latitude: 0, longitude: 0, time_utc: "2026-07-04 12:00:00 +0000 UTC" },
+      Message: { PositionReport: { Sog: 0, Cog: 0, TrueHeading: 511, NavigationalStatus: null } },
+    };
+    const out = parseAisStreamMessage(raw);
+    expect(out?.pos?.navStatus).toBeNull();
+  });
 });
