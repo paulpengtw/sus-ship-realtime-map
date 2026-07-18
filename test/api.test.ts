@@ -67,6 +67,27 @@ describe("API worker", () => {
     expect(body.events).toHaveLength(1);
   });
 
+  it("/api/vessel/:mmsi score uses max confidence over ALL open assessments, not just display window", async () => {
+    const recentAssessments = Array.from({ length: 20 }, (_, index) => {
+      const k = index + 1;
+      return env.DB.prepare(
+        `INSERT INTO assessments (id, mmsi, category, status, confidence, opened_ts, updated_ts, closed_ts, region, narrative, evidence)
+         VALUES (?1, 412000001, 'cable_interference', 'open', 0.2, ?2, ?2, NULL, 'tw', 'Recent low-confidence assessment.', '[]')`,
+      ).bind(`recent-open-${k}`, T0 - k * 1000);
+    });
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM assessments"),
+      ...recentAssessments,
+      env.DB.prepare(
+        `INSERT INTO assessments (id, mmsi, category, status, confidence, opened_ts, updated_ts, closed_ts, region, narrative, evidence)
+         VALUES ('old-high-open', 412000001, 'cable_interference', 'open', 0.9, ?1, ?1, NULL, 'tw', 'Old high-confidence assessment.', '[]')`,
+      ).bind(T0 - 10 * 86_400_000),
+    ]);
+
+    const body = await (await SELF.fetch("https://x/api/vessel/412000001")).json<any>();
+    expect(body.vessel.score).toBeGreaterThanOrEqual(4.5);
+  });
+
   it("/api/vessel/:mmsi/track returns windowed points + GFW breadcrumbs", async () => {
     // Fresh gfw_backfill row → the endpoint's on-demand backfill is a cache hit (no live fetch in tests).
     await env.DB.prepare(`INSERT OR REPLACE INTO gfw_backfill (mmsi, gfw_id, fetched_ts) VALUES (412000001, 'g1', ?1)`)

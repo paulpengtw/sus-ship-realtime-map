@@ -398,10 +398,13 @@ export default {
       const mmsi = Number(vesselMatch[1]);
       const vessel = await env.DB.prepare(`SELECT * FROM vessels WHERE mmsi = ?1`).bind(mmsi).first<any>();
       if (!vessel) return json({ error: "unknown vessel" }, 404);
-      const events = await env.DB.prepare(`SELECT * FROM events WHERE mmsi = ?1 ORDER BY start_ts DESC LIMIT 100`).bind(mmsi).all<any>();
-      const assess = await env.DB.prepare(`SELECT * FROM assessments WHERE mmsi = ?1 ORDER BY opened_ts DESC LIMIT 20`).bind(mmsi).all<any>();
-      const assessments = assess.results.map(rowToAssessment);
-      const maxConfidence = Math.max(0, ...assessments.filter((a) => a.status === "open").map((a) => a.confidence));
+      const [events, assess, maxOpen] = await env.DB.batch([
+        env.DB.prepare(`SELECT * FROM events WHERE mmsi = ?1 ORDER BY start_ts DESC LIMIT 100`).bind(mmsi),
+        env.DB.prepare(`SELECT * FROM assessments WHERE mmsi = ?1 ORDER BY opened_ts DESC LIMIT 20`).bind(mmsi),
+        env.DB.prepare(`SELECT COALESCE(MAX(confidence), 0) AS max_open FROM assessments WHERE mmsi = ?1 AND status = 'open'`).bind(mmsi),
+      ]);
+      const assessments = (assess.results as any[]).map(rowToAssessment);
+      const maxConfidence = Number((maxOpen.results as any[])[0]?.max_open ?? 0);
       return json({
         generatedAt: now,
         vessel: {
