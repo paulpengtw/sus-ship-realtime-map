@@ -9,6 +9,7 @@ import {
 } from "./api";
 
 let selected: ApiCandidate | null = null;
+let queueCache: Map<string, ApiCandidate> = new Map();
 const SOURCES = ["assessment", "event_cluster", "random_negative", "curated_positive"] as const;
 const SOURCE_LABEL: Record<string, string> = {
   assessment: "Assessments", event_cluster: "Event clusters",
@@ -128,6 +129,7 @@ async function renderQueue(): Promise<void> {
     fetchLabelStats(),
     Promise.all(SOURCES.map((s) => fetchLabelQueue(s, 10))),
   ]);
+  queueCache = new Map(perSource.flatMap((x) => x.candidates).map((c) => [c.id, c]));
   const parts: string[] = [];
   for (let i = 0; i < SOURCES.length; i++) {
     const s = SOURCES[i];
@@ -153,12 +155,7 @@ async function renderQueue(): Promise<void> {
 }
 
 async function lookupById(id: string): Promise<ApiCandidate | null> {
-  for (const s of SOURCES) {
-    const { candidates } = await fetchLabelQueue(s, 100);
-    const hit = candidates.find((c) => c.id === id);
-    if (hit) return hit;
-  }
-  return null;
+  return queueCache.get(id) ?? null;
 }
 
 export function selectReviewIncident(c: ApiCandidate): void {
