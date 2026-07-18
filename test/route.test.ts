@@ -81,12 +81,12 @@ describe("route deviation detector", () => {
     expect(evs.filter((e: any) => e.evidence?.kind === "circling")).toHaveLength(0);
   });
 
-  it("stationary vessel with low displacement does NOT fire circling (minimum distance check)", () => {
+  it("low displacement above sog gate does NOT fire circling", () => {
     const s = newVesselState(5, T0);
     const geo = makeGeo();
     // 12 positions all at the same spot with negligible jitter
     const positions = Array.from({ length: 12 }, (_, i) =>
-      pos(5, 120.3 + i * 0.000001, 22.5 + i * 0.000001, 0.1, i * 30, i * 5));
+      pos(5, 120.3 + i * 0.000001, 22.5 + i * 0.000001, 3, i * 30, i * 5));
     const evs = feedPositions(s, positions, geo);
     expect(evs.filter((e: any) => e.evidence?.kind === "circling")).toHaveLength(0);
   });
