@@ -297,7 +297,10 @@ export default {
       if (!Number.isFinite(since) || !Number.isFinite(until)) return json({ error: "bad range" }, 400);
       const [events, assessments] = await env.DB.batch([
         env.DB.prepare(`SELECT id, mmsi, start_ts, type FROM events WHERE start_ts BETWEEN ?1 AND ?2`).bind(since, until),
-        env.DB.prepare(`SELECT opened_ts, closed_ts FROM assessments WHERE opened_ts BETWEEN ?1 AND ?2`).bind(since, until),
+        env.DB.prepare(
+          `SELECT opened_ts, closed_ts FROM assessments
+           WHERE opened_ts <= ?2 AND COALESCE(closed_ts, ?2) >= ?1`,
+        ).bind(since, until),
       ]);
       const assessmentWindows = (assessments.results as any[]).map((r) => ({
         tStart: r.opened_ts, tEnd: r.closed_ts ?? now,
@@ -317,7 +320,10 @@ export default {
           FROM positions p JOIN vessels v ON v.mmsi = p.mmsi
           WHERE p.ts BETWEEN ?1 AND ?2
           GROUP BY v.mmsi, day_ms HAVING positions >= 20`).bind(since, until),
-        env.DB.prepare(`SELECT opened_ts, closed_ts FROM assessments WHERE opened_ts BETWEEN ?1 AND ?2`).bind(since, until),
+        env.DB.prepare(
+          `SELECT opened_ts, closed_ts FROM assessments
+           WHERE opened_ts <= ?2 AND COALESCE(closed_ts, ?2) >= ?1`,
+        ).bind(since, until),
         env.DB.prepare(`SELECT DISTINCT mmsi, CAST((start_ts / 86400000) AS INTEGER) * 86400000 AS day_ms FROM events WHERE start_ts BETWEEN ?1 AND ?2`).bind(since, until),
       ]);
       const eventDays = new Set((events.results as any[]).map((e) => `${e.mmsi}:${e.day_ms}`));
