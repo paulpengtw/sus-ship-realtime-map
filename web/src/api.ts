@@ -45,3 +45,46 @@ export const fetchTrajectories = (region: string, window: string) =>
   get<TrajectoriesResponse>(`/api/trajectories?region=${region}&window=${window}`);
 export const fetchVesselTrack = (mmsi: number, window: string) =>
   get<TrackResponse>(`/api/vessel/${mmsi}/track?window=${window}`);
+
+export interface ApiCandidate {
+  id: string; vesselId: string; tStart: number; tEnd: number;
+  source: "assessment" | "event_cluster" | "random_negative" | "curated_positive";
+  sourceRef: string | null; createdAt: number;
+  modelSnapshot: unknown; eventIds: string[];
+}
+export async function fetchLabelQueue(source?: string, limit = 25): Promise<{ candidates: ApiCandidate[] }> {
+  const qs = new URLSearchParams();
+  if (source) qs.set("source", source);
+  qs.set("limit", String(limit));
+  const res = await fetch(`/api/labels/queue?${qs}`);
+  if (!res.ok) throw new Error(`labels/queue ${res.status}`);
+  return res.json();
+}
+export async function fetchLabelStats(): Promise<{
+  bySource: Record<string, { total: number; labeled: number }>;
+  byVerdict: { threat: number; suspicious: number; benign: number; unclear: number };
+  imbalance: { threatVsBenign: number };
+}> {
+  const res = await fetch("/api/labels/stats");
+  if (!res.ok) throw new Error(`labels/stats ${res.status}`);
+  return res.json();
+}
+
+export async function fetchVesselTrackRange(mmsi: number, from: number, to: number): Promise<{
+  points: { ts: number; lon: number; lat: number; sog: number; cog: number }[];
+  gfwEvents: { id: string; type: string; lon: number; lat: number; startTs: number; endTs: number | null }[];
+  gfwError?: unknown;
+}> {
+  const res = await fetch(`/api/vessel/${mmsi}/track?from=${from}&to=${to}`);
+  if (!res.ok) throw new Error(`vessel/track ${res.status}`);
+  return res.json();
+}
+
+export interface PostLabelBody {
+  incidentId: string; labeler: string; verdict: "threat" | "suspicious" | "benign" | "unclear";
+  intentCategories?: string[]; labelerConfidence?: number; notes?: string;
+}
+export async function postLabel(body: PostLabelBody): Promise<{ ok: true; id: number } | { error: string }> {
+  const res = await fetch("/api/labels", { method: "POST", body: JSON.stringify(body) });
+  return res.json();
+}

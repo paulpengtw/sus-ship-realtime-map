@@ -49,14 +49,18 @@ map.on("load", () => {
 
   initVessels(selectVessel);
   initTrajectories(selectVessel);
-  initEventFeed();
-  initRegionSwitcher();
-  initWindowSwitcher();
-  initStatsBar();
-  initTimeline();
-  initCablePanel();
-  if (hashState.vessel) selectVessel(hashState.vessel);
-  initOnboarding();
+  if (hashState.mode === "review") {
+    void import("./review").then((m) => m.initReviewMode());
+  } else {
+    initEventFeed();
+    initRegionSwitcher();
+    initWindowSwitcher();
+    initStatsBar();
+    initTimeline();
+    initCablePanel();
+    if (hashState.vessel) selectVessel(hashState.vessel);
+    initOnboarding();
+  }
 });
 
 class ExclusionToggle implements maplibregl.IControl {
