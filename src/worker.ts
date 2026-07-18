@@ -214,6 +214,26 @@ export default {
       return json({ generatedAt: now, candidates: results.map(rowToCandidate) });
     }
 
+    if (url.pathname === "/api/labels/stats") {
+      const [srcRows, verdictRows] = await env.DB.batch([
+        env.DB.prepare(`
+          SELECT c.source AS src, COUNT(c.id) AS total,
+                 SUM(CASE WHEN l.id IS NULL THEN 0 ELSE 1 END) AS labeled
+          FROM candidate_incidents c LEFT JOIN labels l ON l.incident_id = c.id
+          GROUP BY c.source`),
+        env.DB.prepare(`SELECT verdict AS v, COUNT(*) AS c FROM labels GROUP BY verdict`),
+      ]);
+      const bySource: Record<string, { total: number; labeled: number }> = {};
+      for (const s of LABEL_SOURCES) bySource[s] = { total: 0, labeled: 0 };
+      for (const r of srcRows.results as any[]) bySource[r.src] = { total: Number(r.total), labeled: Number(r.labeled) };
+      const byVerdict = { threat: 0, suspicious: 0, benign: 0, unclear: 0 };
+      for (const r of verdictRows.results as any[]) if (r.v in byVerdict) (byVerdict as any)[r.v] = Number(r.c);
+      return json({
+        generatedAt: now, bySource, byVerdict,
+        imbalance: { threatVsBenign: byVerdict.threat / Math.max(byVerdict.benign, 1) },
+      });
+    }
+
     const trackMatch = /^\/api\/vessel\/(\d{1,9})\/track$/.exec(url.pathname);
     if (trackMatch) {
       const mmsi = Number(trackMatch[1]);
