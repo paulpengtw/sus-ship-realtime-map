@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { CONFIG } from "../src/config";
 import { GeoContext } from "../src/geo/context";
 import { newVesselState, type AnomalyEvent } from "../src/types";
-import { applyEventToFusion, confidenceFor, maxCategoryScore, signalsFor } from "../src/fusion";
+import { applyEventToFusion, clauseFor, confidenceFor, maxCategoryScore, signalsFor } from "../src/fusion";
 
 const cables = { type: "FeatureCollection", features: [{ type: "Feature", properties: { name: "C1", approximate: true }, geometry: { type: "LineString", coordinates: [[120.0, 22.0], [121.0, 22.0]] } }] };
 const noFc = { type: "FeatureCollection", features: [] };
@@ -20,6 +20,16 @@ const darkGapEv = () => ev({ id: "ais_gap-1-1", type: "ais_gap", endTs: T0 + 2 *
 const flagEv = (n: number) => ev({ id: `identity-1-${n}-flag`, type: "identity", evidence: { kind: "flag_mismatch", midCountry: "CN", callsignCountry: "TW", callsign: "BV1" } });
 
 describe("signal mapping", () => {
+  it("clauseFor identity_change: prefers the name pair when name changed", () => {
+    const ev = { type: "identity", evidence: { kind: "identity_change", prevName: "A", newName: "B", prevCallsign: "X", newCallsign: "X" } } as any;
+    expect(clauseFor(ev)).toBe("identity changed (A → B)");
+  });
+
+  it("clauseFor identity_change: falls back to callsign when only callsign changed", () => {
+    const ev = { type: "identity", evidence: { kind: "identity_change", prevName: "SHUNXIN 39", newName: "SHUNXIN 39", prevCallsign: "X1", newCallsign: "X2" } } as any;
+    expect(clauseFor(ev)).toBe("identity changed (X1 → X2)");
+  });
+
   it("anchor drag is a strong cable signal", () => {
     const s = newVesselState(1, T0);
     const sig = signalsFor(ev({ type: "anchor_drag", evidence: { corridor: "C1", cogStdDeg: 80, meanSogKn: 1.2 } }), s, geo, CONFIG);

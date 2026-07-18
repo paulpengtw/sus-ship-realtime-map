@@ -20,7 +20,7 @@ const fmtNm = (m: number) => `${(m / 1852).toFixed(1)} nm`;
 const ge = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
 // One human-readable clause per event; assessments join these into the narrative (spec §4e).
-function clauseFor(ev: AnomalyEvent): string {
+export function clauseFor(ev: AnomalyEvent): string {
   const e = ev.evidence as Record<string, unknown>;
   switch (ev.type) {
     case "loitering":
@@ -36,7 +36,11 @@ function clauseFor(ev: AnomalyEvent): string {
     case "identity":
       if (e.kind === "teleport") return `position jump implies ${ge(e.impliedSpeedKn)} kn`;
       if (e.kind === "flag_mismatch") return `callsign country (${String(e.callsignCountry)}) conflicts with MMSI flag (${String(e.midCountry)})`;
-      return `identity changed (${String(e.prevName ?? e.prevCallsign)} → ${String(e.newName ?? e.newCallsign)})`;
+      const nameChanged = e.prevName != null && e.newName != null && e.prevName !== e.newName;
+      const [prev, next] = nameChanged
+        ? [e.prevName, e.newName]
+        : [e.prevCallsign ?? e.prevName, e.newCallsign ?? e.newName];
+      return `identity changed (${String(prev)} → ${String(next)})`;
     case "speed_anomaly":
       return `speed anomaly (${String(e.kind)}) in corridor`;
     case "route_deviation":
