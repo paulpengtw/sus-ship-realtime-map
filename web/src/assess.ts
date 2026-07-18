@@ -1,5 +1,8 @@
 // web/src/assess.ts — category presentation + pure assessment rendering (testable without DOM).
 import type { Assessment } from "./api";
+import { CATEGORY_COLOR as THREAT_CATEGORY_COLOR } from "./categoryColor";
+
+export const CATEGORY_COLOR: Record<string, string> = THREAT_CATEGORY_COLOR;
 
 export const CATEGORY_LABEL: Record<string, string> = {
   cable_interference: "Cable", dark_activity: "Dark", identity_deception: "Identity",
@@ -8,10 +11,6 @@ export const CATEGORY_LONG: Record<string, string> = {
   cable_interference: "Cable interference", dark_activity: "Dark activity",
   identity_deception: "Identity deception",
 };
-export const CATEGORY_COLOR: Record<string, string> = {
-  cable_interference: "#e5484d", dark_activity: "#b18cff", identity_deception: "#f0a83c",
-};
-
 export const confidencePct = (c: number): string => `${Math.round(c * 100)}%`;
 
 export const esc = (s: unknown) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));

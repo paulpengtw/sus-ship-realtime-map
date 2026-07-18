@@ -1,6 +1,7 @@
 // web/src/vessels.ts
 import type { GeoJSONSource } from "maplibre-gl";
 import { fetchGfw, fetchSnapshot } from "./api";
+import { CAT_MATCH } from "./categoryColor";
 import { map } from "./main";
 import { healthView } from "./health";
 
@@ -11,9 +12,6 @@ const PULSE_MS = 1500;       // sus-halo pulse period (spec: ~1.5 s)
 // A vessel is "sus" when it has at least one open threat assessment.
 const SUS_ACTIVE = [">", ["coalesce", ["get", "maxConfidence"], 0], 0] as any;
 // Colored by top assessment category; calm traffic stays grey.
-const CAT_MATCH = ["match", ["coalesce", ["get", "topCategory"], ""],
-  "cable_interference", "#e5484d", "dark_activity", "#b18cff",
-  "identity_deception", "#f0a83c", "#e5484d"] as any;
 const COLOR = ["case", SUS_ACTIVE, CAT_MATCH, "#aab6c8"] as any;
 // Heading is only trustworthy when the vessel is actually moving (spec: sog >= 0.5 kn).
 const HAS_HEADING = ["all", ["has", "cog"], [">=", ["coalesce", ["get", "sog"], 0], 0.5]] as any;

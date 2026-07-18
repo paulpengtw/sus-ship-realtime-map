@@ -1,9 +1,9 @@
 // web/src/timeline.ts — hand-rolled SVG severity histogram, last 14 days, active region (spec §3).
 import type { DayBucket } from "./api";
+import { CAT_COLOR } from "./categoryColor";
 import { getRegion, onRegionChange } from "./regions";
 import { onStats } from "./stats";
 
-const CAT_COLOR = ["#e5484d", "#b18cff", "#f0a83c"]; // THREAT_CATEGORIES order
 const W = 276, H = 36, GAP = 2;
 
 let buckets: DayBucket[] = [];

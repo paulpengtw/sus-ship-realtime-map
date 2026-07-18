@@ -2,14 +2,12 @@
 import type { GeoJSONSource } from "maplibre-gl";
 import maplibregl from "maplibre-gl";
 import { fetchTrajectories } from "./api";
+import { CAT_MATCH } from "./categoryColor";
 import { map } from "./main";
 import { getRegion, onRegionChange } from "./regions";
 import { getWindow, onWindowChange } from "./windows";
 
 const POLL_MS = 60_000; // sus set changes as events open/close; cheaper than the 15 s snapshot poll
-const CAT_MATCH = ["match", ["coalesce", ["get", "topCategory"], ""],
-  "cable_interference", "#e5484d", "dark_activity", "#b18cff",
-  "identity_deception", "#f0a83c", "#e5484d"] as any;
 const NO_HOVER = ["==", ["get", "mmsi"], -1] as any;
 
 async function refresh(): Promise<void> {
