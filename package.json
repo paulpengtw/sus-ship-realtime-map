@@ -8,7 +8,8 @@
     "sync-data": "cp data/cables.json data/exclusions.json web/public/data/",
     "build:web": "npm run sync-data && vite build web",
     "deploy": "npm run build:web && wrangler deploy",
-    "replay": "tsx scripts/replay.ts"
+    "replay": "tsx scripts/replay.ts",
+    "materialize": "tsx scripts/materialize-candidates.ts"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.19",
