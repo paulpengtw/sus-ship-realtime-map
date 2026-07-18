@@ -174,7 +174,7 @@ export default {
         regions[r.id] = { vessels: 0, activeAlerts: 0, events24h: 0 };
         histogram[r.id] = Array.from({ length: 14 }, (_, i) => ({
           day: new Date(now - (13 - i) * DAY).toISOString().slice(0, 10),
-          counts: [0, 0, 0, 0],
+          counts: [0, 0, 0],
         }));
       }
       for (const row of vc.results as any[]) if (regions[row.region]) regions[row.region].vessels = row.c;

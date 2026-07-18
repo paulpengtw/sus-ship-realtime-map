@@ -11,7 +11,7 @@ const a: Assessment = {
 
 describe("assessment rendering helpers", () => {
   it("has a label and color for every category", () => {
-    for (const c of ["cable_interference", "dark_activity", "identity_deception", "militia_presence"]) {
+    for (const c of ["cable_interference", "dark_activity", "identity_deception"]) {
       expect(CATEGORY_LABEL[c]).toBeTruthy();
       expect(CATEGORY_COLOR[c]).toMatch(/^#[0-9a-f]{6}$/);
     }

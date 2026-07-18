@@ -36,7 +36,7 @@ describe("/api/stats", () => {
 
     const kr = body.histogram.kr;
     expect(kr).toHaveLength(14);
-    expect(kr.every((b: any) => /^\d{4}-\d{2}-\d{2}$/.test(b.day) && b.counts.length === 4)).toBe(true);
+    expect(kr.every((b: any) => /^\d{4}-\d{2}-\d{2}$/.test(b.day) && b.counts.length === 3)).toBe(true);
     const t0Day = new Date(T0).toISOString().slice(0, 10);
     expect(kr.find((b: any) => b.day === t0Day)!.counts[1]).toBe(1);      // dark_activity index 1
     const threeAgo = new Date(NOW - 3 * DAY).toISOString().slice(0, 10);

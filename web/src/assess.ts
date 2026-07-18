@@ -2,14 +2,14 @@
 import type { Assessment } from "./api";
 
 export const CATEGORY_LABEL: Record<string, string> = {
-  cable_interference: "Cable", dark_activity: "Dark", identity_deception: "Identity", militia_presence: "Militia",
+  cable_interference: "Cable", dark_activity: "Dark", identity_deception: "Identity",
 };
 export const CATEGORY_LONG: Record<string, string> = {
   cable_interference: "Cable interference", dark_activity: "Dark activity",
-  identity_deception: "Identity deception", militia_presence: "Militia pattern",
+  identity_deception: "Identity deception",
 };
 export const CATEGORY_COLOR: Record<string, string> = {
-  cable_interference: "#e5484d", dark_activity: "#b18cff", identity_deception: "#f0a83c", militia_presence: "#4cc3ff",
+  cable_interference: "#e5484d", dark_activity: "#b18cff", identity_deception: "#f0a83c",
 };
 
 export const confidencePct = (c: number): string => `${Math.round(c * 100)}%`;
