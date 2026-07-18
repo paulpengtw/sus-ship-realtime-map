@@ -32,6 +32,7 @@ describe("GET /api/labels/stats", () => {
     expect(body.bySource.curated_positive).toEqual({ total: 0, labeled: 0 });
     expect(body.byVerdict).toEqual({ threat: 1, suspicious: 0, benign: 1, unclear: 1 });
     expect(body.imbalance.threatVsBenign).toBe(1);
+    expect(body.imbalance.benignVsThreat).toBe(1);
   });
 
   it("does not double-count a candidate with multiple labels", async () => {
