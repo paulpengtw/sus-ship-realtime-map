@@ -30,6 +30,12 @@ export interface IncidentLabel {
   notes: string | null;
 }
 
+export type SourceMaterializer = (deps: {
+  origin: string;
+  now: number;
+  lookbackMs: number;
+}) => Promise<CandidateIncident[]>;
+
 // Deterministic 16-hex-char id (double FNV-1a) — sync, works in workers + tsx.
 export function candidateIdOf(vesselId: string, tStart: number, tEnd: number, source: LabelSource): string {
   const s = `${vesselId}:${tStart}:${tEnd}:${source}`;
