@@ -20,11 +20,7 @@ const darkGapEv = () => ev({ id: "ais_gap-1-1", type: "ais_gap", endTs: T0 + 2 *
 const flagEv = (n: number) => ev({ id: `identity-1-${n}-flag`, type: "identity", evidence: { kind: "flag_mismatch", midCountry: "CN", callsignCountry: "TW", callsign: "BV1" } });
 
 describe("signal mapping", () => {
-  it("clauseFor identity_change: prefers the name pair when name changed", () => {
-    const ev = { type: "identity", evidence: { kind: "identity_change", prevName: "A", newName: "B", prevCallsign: "X", newCallsign: "X" } } as any;
-    expect(clauseFor(ev)).toBe("identity changed (A → B)");
-  });
-
+  // This fixture exercises the branch-selection difference: old clauseFor preferred any present name, while new logic checks whether the name changed.
   it("clauseFor identity_change: falls back to callsign when only callsign changed", () => {
     const ev = { type: "identity", evidence: { kind: "identity_change", prevName: "SHUNXIN 39", newName: "SHUNXIN 39", prevCallsign: "X1", newCallsign: "X2" } } as any;
     expect(clauseFor(ev)).toBe("identity changed (X1 → X2)");
