@@ -259,6 +259,10 @@ export default {
       }
       const existsRow = await env.DB.prepare(`SELECT id FROM candidate_incidents WHERE id = ?1`).bind(incidentId).first<any>();
       if (!existsRow) return json({ error: "unknown incidentId" }, 404);
+      const dup = await env.DB.prepare(
+        `SELECT id FROM labels WHERE incident_id = ?1 AND labeler = ?2`,
+      ).bind(incidentId, labeler).first<{ id: number }>();
+      if (dup) return json({ error: "already labeled" }, 409);
       try {
         const result = await env.DB.prepare(
           `INSERT INTO labels (incident_id, labeler, ts, verdict, intent_categories, labeler_confidence, notes)
@@ -269,7 +273,7 @@ export default {
           labelerConfidence ?? null,
           typeof notes === "string" ? notes : null,
         ).run();
-        return json({ ok: true, id: result.meta.last_row_id }, 200);
+        return json({ ok: true, id: result.meta.last_row_id }, 201);
       } catch (err) {
         if (String(err).match(/UNIQUE/i)) return json({ error: "already labeled" }, 409);
         throw err;

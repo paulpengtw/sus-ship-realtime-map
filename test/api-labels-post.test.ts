@@ -8,7 +8,7 @@ async function seedCandidate(id: string) {
   ).bind(id, "416000001", 1, 2, "assessment", 100).run();
 }
 
-async function postLabel(body: unknown, expectStatus = 200) {
+async function postLabel(body: unknown, expectStatus = 201) {
   const res = await SELF.fetch("https://x/api/labels", { method: "POST", body: JSON.stringify(body) });
   expect(res.status).toBe(expectStatus);
   return res;
@@ -24,6 +24,12 @@ describe("POST /api/labels", () => {
     await postLabel({ incidentId: "inc-1", labeler: "alice", verdict: "benign", labelerConfidence: 4 });
     const row = await env.DB.prepare(`SELECT verdict, intent_categories FROM labels WHERE incident_id = ?1`).bind("inc-1").first<any>();
     expect(row).toMatchObject({ verdict: "benign", intent_categories: null });
+  });
+
+  it("returns 201 on successful label insert", async () => {
+    await seedCandidate("inc-2");
+    const res = await postLabel({ incidentId: "inc-2", labeler: "alice", verdict: "benign" });
+    expect(res.status).toBe(201);
   });
 
   it("writes a threat label with intent categories JSON", async () => {
@@ -43,6 +49,14 @@ describe("POST /api/labels", () => {
   it("returns 409 on duplicate (incidentId, labeler)", async () => {
     await postLabel({ incidentId: "inc-1", labeler: "alice", verdict: "benign" });
     await postLabel({ incidentId: "inc-1", labeler: "alice", verdict: "threat", intentCategories: ["dark_activity"] }, 409);
+  });
+
+  it("returns 409 already labeled when the same label is posted twice", async () => {
+    await seedCandidate("inc-repeat");
+    const body = { incidentId: "inc-repeat", labeler: "alice", verdict: "benign" };
+    await postLabel(body);
+    const res = await postLabel(body, 409);
+    expect(await res.json()).toEqual({ error: "already labeled" });
   });
 
   it("rejects unknown incidentId with 404", async () => {
