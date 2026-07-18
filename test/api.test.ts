@@ -100,4 +100,31 @@ describe("API worker", () => {
     expect(props[412000003].topCategory).toBeNull();
     expect(props[412000003].maxConfidence).toBe(0);
   });
+
+  it("/api/vessel/:mmsi returns assessments array sorted by openedTs DESC", async () => {
+    const olderOpenedTs = T0 - 5 * 60_000;
+    const olderClosedTs = T0 - 2 * 60_000;
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM assessments"),
+      env.DB.prepare(`INSERT INTO assessments (id, mmsi, category, status, confidence, opened_ts, updated_ts, closed_ts, region, narrative, evidence)
+                      VALUES ('newer-opened', 412000001, 'cable_interference', 'open', 0.62, ?1, ?1, NULL, 'tw', 'Newer assessment.', '[]')`).bind(T0),
+      env.DB.prepare(`INSERT INTO assessments (id, mmsi, category, status, confidence, opened_ts, updated_ts, closed_ts, region, narrative, evidence)
+                      VALUES ('older-opened', 412000001, 'dark_activity', 'closed', 0.41, ?1, ?2, ?3, 'tw', 'Older assessment.', '[]')`)
+        .bind(olderOpenedTs, T0 + 60_000, olderClosedTs),
+    ]);
+
+    const body = await (await SELF.fetch("https://x/api/vessel/412000001")).json<any>();
+    expect(Array.isArray(body.assessments)).toBe(true);
+    expect(body.assessments.map((assessment: any) => ({
+      id: assessment.id,
+      category: assessment.category,
+      confidence: assessment.confidence,
+      openedTs: assessment.openedTs,
+      closedTs: assessment.closedTs,
+      narrative: assessment.narrative,
+    }))).toEqual([
+      { id: "newer-opened", category: "cable_interference", confidence: 0.62, openedTs: T0, closedTs: null, narrative: "Newer assessment." },
+      { id: "older-opened", category: "dark_activity", confidence: 0.41, openedTs: olderOpenedTs, closedTs: olderClosedTs, narrative: "Older assessment." },
+    ]);
+  });
 });
