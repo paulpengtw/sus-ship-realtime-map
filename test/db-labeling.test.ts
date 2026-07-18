@@ -20,6 +20,15 @@ describe("labeling schema (migration 0006)", () => {
     }
   });
 
+  it("candidate_incidents rejects NULL id (migration 0007 enforces NOT NULL)", async () => {
+    await expect(
+      env.DB.prepare(
+        `INSERT INTO candidate_incidents (id, vessel_id, t_start, t_end, source, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+      ).bind(null, "416000099", 1_700_000_000_000, 1_700_003_600_000, "assessment", 1_700_004_000_000).run(),
+    ).rejects.toThrow(/NOT NULL|constraint/i);
+  });
+
   it("labels enforces one label per (incident_id, labeler)", async () => {
     await env.DB.prepare(
       `INSERT INTO candidate_incidents (id, vessel_id, t_start, t_end, source, created_at)
