@@ -37,3 +37,13 @@ Instead of independent detectors, build per-vessel "behavior profiles" tracking 
 - **Historical pattern matching** — flag vessels that have previously been involved in incidents (repeat offenders)
 - **Satellite AIS integration** — fill terrestrial AIS blind spots with satellite data (Spire, MarineTraffic research API)
 - **Alert notifications** — push alerts to SeaLight team for high-severity events
+
+## Threat model finer-granularity — Phase 0 shipped (2026-07-18)
+
+Labeling harness live: `candidate_incidents` + `labels` tables, `scripts/materialize-candidates.ts`
+generating candidates from four sources, `GET/POST /api/labels/*`, and `#mode=review` UI.
+`militia_presence` category retired. See
+[Phase 0 plan](superpowers/plans/2026-07-18-threat-model-phase-0-labeling-harness.md)
+and [spec §3](superpowers/specs/2026-07-18-threat-model-finer-granularity-design.md#3-phase-0---labeling-harness).
+
+Next: accumulate ≥ 200 labeled incidents (≥ 40 threat, ≥ 100 benign) before starting Phase 1.
