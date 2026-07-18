@@ -276,17 +276,26 @@ export default {
     const trackMatch = /^\/api\/vessel\/(\d{1,9})\/track$/.exec(url.pathname);
     if (trackMatch) {
       const mmsi = Number(trackMatch[1]);
-      const winMs = parseWindow(url.searchParams.get("window"));
-      if (winMs === null) return json({ error: "bad window" }, 400);
+      const fromRaw = url.searchParams.get("from");
+      const toRaw = url.searchParams.get("to");
+      let fromTs: number, toTs: number;
+      if (fromRaw !== null || toRaw !== null) {
+        const from = Number(fromRaw), to = Number(toRaw);
+        if (!Number.isFinite(from) || !Number.isFinite(to) || from >= to) return json({ error: "bad range" }, 400);
+        fromTs = from; toTs = to;
+      } else {
+        const winMs = parseWindow(url.searchParams.get("window"));
+        if (winMs === null) return json({ error: "bad window" }, 400);
+        fromTs = now - winMs; toTs = now;
+      }
       const vessel = await env.DB.prepare(`SELECT mmsi FROM vessels WHERE mmsi = ?1`).bind(mmsi).first<any>();
       if (!vessel) return json({ error: "unknown vessel" }, 404);
-      // On-demand GFW backfill (24 h cache). A GFW failure must not block our own points (spec §4).
       const { error: gfwError } = await gfwBackfillVessel(env, mmsi, now);
       const [points, gfw] = await Promise.all([
-        env.DB.prepare(`SELECT ts, lon, lat, sog, cog FROM positions WHERE mmsi = ?1 AND ts >= ?2 ORDER BY ts ASC`)
-          .bind(mmsi, now - winMs).all<any>(),
-        env.DB.prepare(`SELECT id, type, lon, lat, start_ts, end_ts FROM gfw_events WHERE mmsi = ?1 AND start_ts >= ?2 ORDER BY start_ts ASC`)
-          .bind(mmsi, now - winMs).all<any>(),
+        env.DB.prepare(`SELECT ts, lon, lat, sog, cog FROM positions WHERE mmsi = ?1 AND ts BETWEEN ?2 AND ?3 ORDER BY ts ASC`)
+          .bind(mmsi, fromTs, toTs).all<any>(),
+        env.DB.prepare(`SELECT id, type, lon, lat, start_ts, end_ts FROM gfw_events WHERE mmsi = ?1 AND start_ts BETWEEN ?2 AND ?3 ORDER BY start_ts ASC`)
+          .bind(mmsi, fromTs, toTs).all<any>(),
       ]);
       return json({
         generatedAt: now,
