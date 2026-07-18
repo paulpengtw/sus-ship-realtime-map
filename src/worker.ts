@@ -217,8 +217,9 @@ export default {
     if (url.pathname === "/api/labels/stats") {
       const [srcRows, verdictRows] = await env.DB.batch([
         env.DB.prepare(`
-          SELECT c.source AS src, COUNT(c.id) AS total,
-                 SUM(CASE WHEN l.id IS NULL THEN 0 ELSE 1 END) AS labeled
+          SELECT c.source AS src,
+                 COUNT(DISTINCT c.id) AS total,
+                 COUNT(DISTINCT CASE WHEN l.id IS NOT NULL THEN c.id END) AS labeled
           FROM candidate_incidents c LEFT JOIN labels l ON l.incident_id = c.id
           GROUP BY c.source`),
         env.DB.prepare(`SELECT verdict AS v, COUNT(*) AS c FROM labels GROUP BY verdict`),

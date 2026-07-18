@@ -7,11 +7,11 @@ const seedCandidate = (id: string, source: string, createdAt: number) =>
      VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
   ).bind(id, "416000001", 1, 2, source, createdAt);
 
-const seedLabel = (incidentId: string, verdict: string) =>
+const seedLabel = (incidentId: string, verdict: string, labeler = "alice") =>
   env.DB.prepare(
     `INSERT INTO labels (incident_id, labeler, ts, verdict, intent_categories, labeler_confidence, notes)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
-  ).bind(incidentId, "alice", 1, verdict, null, 3, null);
+  ).bind(incidentId, labeler, 1, verdict, null, 3, null);
 
 describe("GET /api/labels/stats", () => {
   beforeEach(async () => {
@@ -32,5 +32,20 @@ describe("GET /api/labels/stats", () => {
     expect(body.bySource.curated_positive).toEqual({ total: 0, labeled: 0 });
     expect(body.byVerdict).toEqual({ threat: 1, suspicious: 0, benign: 1, unclear: 1 });
     expect(body.imbalance.threatVsBenign).toBe(1);
+  });
+
+  it("does not double-count a candidate with multiple labels", async () => {
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM labels"),
+      env.DB.prepare("DELETE FROM candidate_incidents"),
+      seedCandidate("dup", "assessment", 1),
+      seedLabel("dup", "threat", "alice"),
+      seedLabel("dup", "benign", "bob"),
+    ]);
+
+    const body = await (await SELF.fetch("https://x/api/labels/stats")).json<any>();
+    expect(body.bySource.assessment.total).toBe(1);
+    expect(body.bySource.assessment.labeled).toBe(1);
+    expect(body.byVerdict).toEqual({ threat: 1, suspicious: 0, benign: 1, unclear: 0 });
   });
 });
