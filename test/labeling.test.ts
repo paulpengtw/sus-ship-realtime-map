@@ -38,4 +38,20 @@ describe("row converters", () => {
     expect(rowToLabel({ incident_id: "abc", labeler: "alice", ts: 1, verdict: "threat", intent_categories: '["cable_interference"]', labeler_confidence: 5, notes: "why" }))
       .toMatchObject({ intentCategories: ["cable_interference"] });
   });
+
+  it("rowToCandidate rejects empty-string JSON columns", () => {
+    const row = {
+      id: "aaaa000000000000", vessel_id: "123", t_start: 1, t_end: 2,
+      source: "assessment", source_ref: null, created_at: 0,
+    };
+    expect(() => rowToCandidate({ ...row, model_snapshot: "", event_ids: null })).toThrow(SyntaxError);
+    expect(() => rowToCandidate({ ...row, model_snapshot: null, event_ids: "" })).toThrow(SyntaxError);
+  });
+
+  it("rowToLabel rejects empty-string intent_categories", () => {
+    expect(() => rowToLabel({
+      id: 1, incident_id: "aaaa000000000000", labeler: "a", ts: 0,
+      verdict: "benign", intent_categories: "", labeler_confidence: null, notes: null,
+    })).toThrow(SyntaxError);
+  });
 });

@@ -50,8 +50,8 @@ export function rowToCandidate(r: any): CandidateIncident {
     source: r.source,
     sourceRef: r.source_ref ?? null,
     createdAt: r.created_at,
-    modelSnapshot: r.model_snapshot ? JSON.parse(r.model_snapshot) : null,
-    eventIds: r.event_ids ? JSON.parse(r.event_ids) : [],
+    modelSnapshot: r.model_snapshot != null ? JSON.parse(r.model_snapshot) : null,
+    eventIds: r.event_ids != null ? JSON.parse(r.event_ids) : [],
   };
 }
 
@@ -62,7 +62,7 @@ export function rowToLabel(r: any): IncidentLabel {
     labeler: r.labeler,
     ts: r.ts,
     verdict: r.verdict,
-    intentCategories: r.intent_categories ? JSON.parse(r.intent_categories) : null,
+    intentCategories: r.intent_categories != null ? JSON.parse(r.intent_categories) : null,
     labelerConfidence: r.labeler_confidence ?? null,
     notes: r.notes ?? null,
   };
