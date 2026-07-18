@@ -1,6 +1,7 @@
 export { TrackerDO } from "./do/tracker";
 import { CONFIG } from "./config";
 import { gfwBackfillVessel, gfwSync } from "./gfw";
+import { LABEL_SOURCES, rowToCandidate } from "./labeling";
 import { decimatePoints, parseWindow } from "./trajectories";
 import { THREAT_CATEGORIES } from "./types";
 
@@ -196,6 +197,21 @@ export default {
         generatedAt: now,
         events: results.map((r: any) => ({ id: r.id, type: r.type, mmsi: r.mmsi, lon: r.lon, lat: r.lat, startTs: r.start_ts, endTs: r.end_ts })),
       });
+    }
+
+    if (url.pathname === "/api/labels/queue") {
+      const source = url.searchParams.get("source");
+      if (source !== null && !(LABEL_SOURCES as readonly string[]).includes(source)) return json({ error: "bad source" }, 400);
+      const limit = Math.min(Math.max(Math.trunc(Number(url.searchParams.get("limit")) || 25), 1), 100);
+      const sql = source
+        ? `SELECT c.* FROM candidate_incidents c LEFT JOIN labels l ON l.incident_id = c.id
+           WHERE l.id IS NULL AND c.source = ?1 ORDER BY c.created_at DESC LIMIT ?2`
+        : `SELECT c.* FROM candidate_incidents c LEFT JOIN labels l ON l.incident_id = c.id
+           WHERE l.id IS NULL ORDER BY c.created_at DESC LIMIT ?1`;
+      const { results } = source
+        ? await env.DB.prepare(sql).bind(source, limit).all<any>()
+        : await env.DB.prepare(sql).bind(limit).all<any>();
+      return json({ generatedAt: now, candidates: results.map(rowToCandidate) });
     }
 
     const trackMatch = /^\/api\/vessel\/(\d{1,9})\/track$/.exec(url.pathname);
