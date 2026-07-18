@@ -9,7 +9,7 @@ import { getWindow, onWindowChange } from "./windows";
 const POLL_MS = 60_000; // sus set changes as events open/close; cheaper than the 15 s snapshot poll
 const CAT_MATCH = ["match", ["coalesce", ["get", "topCategory"], ""],
   "cable_interference", "#e5484d", "dark_activity", "#b18cff",
-  "identity_deception", "#f0a83c", "militia_presence", "#4cc3ff", "#e5484d"] as any;
+  "identity_deception", "#f0a83c", "#e5484d"] as any;
 const NO_HOVER = ["==", ["get", "mmsi"], -1] as any;
 
 async function refresh(): Promise<void> {

@@ -40,7 +40,7 @@ export interface AnomalyEvent {
   region?: RegionId | null;
 }
 
-export const THREAT_CATEGORIES = ["cable_interference", "dark_activity", "identity_deception", "militia_presence"] as const;
+export const THREAT_CATEGORIES = ["cable_interference", "dark_activity", "identity_deception"] as const;
 export type ThreatCategory = (typeof THREAT_CATEGORIES)[number];
 export interface EvidenceRef { eventId: string; type: EventType; kind: string | null; weight: number; ts: number; summary: string }
 export interface ThreatAssessment {
@@ -93,7 +93,6 @@ export function newVesselState(mmsi: number, now: number): VesselState {
       cable_interference: newCategoryState(now),
       dark_activity: newCategoryState(now),
       identity_deception: newCategoryState(now),
-      militia_presence: newCategoryState(now),
     },
     assessments: {},
   };

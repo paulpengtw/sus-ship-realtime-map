@@ -1,6 +1,7 @@
 export { TrackerDO } from "./do/tracker";
 import { CONFIG } from "./config";
 import { gfwBackfillVessel, gfwSync } from "./gfw";
+import { LABEL_SOURCES, LABEL_VERDICTS, rowToCandidate } from "./labeling";
 import { decimatePoints, parseWindow } from "./trajectories";
 import { THREAT_CATEGORIES } from "./types";
 
@@ -174,7 +175,7 @@ export default {
         regions[r.id] = { vessels: 0, activeAlerts: 0, events24h: 0 };
         histogram[r.id] = Array.from({ length: 14 }, (_, i) => ({
           day: new Date(now - (13 - i) * DAY).toISOString().slice(0, 10),
-          counts: [0, 0, 0, 0],
+          counts: [0, 0, 0],
         }));
       }
       for (const row of vc.results as any[]) if (regions[row.region]) regions[row.region].vessels = row.c;
@@ -198,20 +199,181 @@ export default {
       });
     }
 
+    if (url.pathname === "/api/labels/queue") {
+      const source = url.searchParams.get("source");
+      if (source !== null && !(LABEL_SOURCES as readonly string[]).includes(source)) return json({ error: "bad source" }, 400);
+      const limit = Math.min(Math.max(Math.trunc(Number(url.searchParams.get("limit")) || 25), 1), 100);
+      const sql = source
+        ? `SELECT c.* FROM candidate_incidents c LEFT JOIN labels l ON l.incident_id = c.id
+           WHERE l.id IS NULL AND c.source = ?1 ORDER BY c.created_at DESC LIMIT ?2`
+        : `SELECT c.* FROM candidate_incidents c LEFT JOIN labels l ON l.incident_id = c.id
+           WHERE l.id IS NULL ORDER BY c.created_at DESC LIMIT ?1`;
+      const { results } = source
+        ? await env.DB.prepare(sql).bind(source, limit).all<any>()
+        : await env.DB.prepare(sql).bind(limit).all<any>();
+      return json({ generatedAt: now, candidates: results.map(rowToCandidate) });
+    }
+
+    if (url.pathname === "/api/labels/stats") {
+      const [srcRows, verdictRows] = await env.DB.batch([
+        env.DB.prepare(`
+          SELECT c.source AS src,
+                 COUNT(DISTINCT c.id) AS total,
+                 COUNT(DISTINCT CASE WHEN l.id IS NOT NULL THEN c.id END) AS labeled
+          FROM candidate_incidents c LEFT JOIN labels l ON l.incident_id = c.id
+          GROUP BY c.source`),
+        env.DB.prepare(`SELECT verdict AS v, COUNT(*) AS c FROM labels GROUP BY verdict`),
+      ]);
+      const bySource: Record<string, { total: number; labeled: number }> = {};
+      for (const s of LABEL_SOURCES) bySource[s] = { total: 0, labeled: 0 };
+      for (const r of srcRows.results as any[]) bySource[r.src] = { total: Number(r.total), labeled: Number(r.labeled) };
+      const byVerdict = { threat: 0, suspicious: 0, benign: 0, unclear: 0 };
+      for (const r of verdictRows.results as any[]) if (r.v in byVerdict) (byVerdict as any)[r.v] = Number(r.c);
+      return json({
+        generatedAt: now, bySource, byVerdict,
+        imbalance: {
+          threatVsBenign: byVerdict.threat / Math.max(byVerdict.benign, 1),
+          benignVsThreat: byVerdict.benign / Math.max(byVerdict.threat, 1),
+        },
+      });
+    }
+
+    if (url.pathname === "/api/labels" && req.method === "POST") {
+      let body: any;
+      try { body = await req.json(); } catch { return json({ error: "bad json" }, 400); }
+      const { incidentId, labeler, verdict, intentCategories, labelerConfidence, notes } = body ?? {};
+      if (typeof incidentId !== "string" || !incidentId) return json({ error: "incidentId required" }, 400);
+      if (typeof labeler !== "string" || !labeler) return json({ error: "labeler required" }, 400);
+      if (!(LABEL_VERDICTS as readonly string[]).includes(verdict)) return json({ error: "bad verdict" }, 400);
+      const needsIntent = verdict === "threat" || verdict === "suspicious";
+      if (needsIntent) {
+        if (!Array.isArray(intentCategories) || intentCategories.length === 0
+            || !intentCategories.every((c: string) => (THREAT_CATEGORIES as readonly string[]).includes(c))) {
+          return json({ error: "intentCategories required and must be non-empty ThreatCategory[]" }, 400);
+        }
+      } else if (Array.isArray(intentCategories) && intentCategories.length > 0) {
+        return json({ error: "intentCategories only for threat/suspicious" }, 400);
+      }
+      if (labelerConfidence !== undefined && labelerConfidence !== null && !(Number.isInteger(labelerConfidence) && labelerConfidence >= 1 && labelerConfidence <= 5)) {
+        return json({ error: "labelerConfidence must be integer 1..5 or null" }, 400);
+      }
+      const existsRow = await env.DB.prepare(`SELECT id FROM candidate_incidents WHERE id = ?1`).bind(incidentId).first<any>();
+      if (!existsRow) return json({ error: "unknown incidentId" }, 404);
+      try {
+        const result = await env.DB.prepare(
+          `INSERT INTO labels (incident_id, labeler, ts, verdict, intent_categories, labeler_confidence, notes)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
+        ).bind(
+          incidentId, labeler, now, verdict,
+          needsIntent ? JSON.stringify(intentCategories) : null,
+          labelerConfidence ?? null,
+          typeof notes === "string" ? notes : null,
+        ).run();
+        return json({ ok: true, id: result.meta.last_row_id }, 200);
+      } catch (err) {
+        if (String(err).match(/UNIQUE/i)) return json({ error: "already labeled" }, 409);
+        throw err;
+      }
+    }
+
+    if (url.pathname === "/api/labels/materialize/assessments") {
+      const since = Number(url.searchParams.get("since") ?? 0);
+      const until = Number(url.searchParams.get("until") ?? now);
+      if (!Number.isFinite(since) || !Number.isFinite(until)) return json({ error: "bad range" }, 400);
+      const { results } = await env.DB.prepare(
+        `SELECT id, mmsi, opened_ts, closed_ts, category, confidence, region
+         FROM assessments WHERE opened_ts >= ?1 AND opened_ts <= ?2 ORDER BY opened_ts ASC`,
+      ).bind(since, until).all<any>();
+      return json({ generatedAt: now, rows: results });
+    }
+
+    if (url.pathname === "/api/labels/materialize/event-clusters") {
+      const since = Number(url.searchParams.get("since") ?? 0);
+      const until = Number(url.searchParams.get("until") ?? now);
+      if (!Number.isFinite(since) || !Number.isFinite(until)) return json({ error: "bad range" }, 400);
+      const [events, assessments] = await env.DB.batch([
+        env.DB.prepare(`SELECT id, mmsi, start_ts, type FROM events WHERE start_ts BETWEEN ?1 AND ?2`).bind(since, until),
+        env.DB.prepare(`SELECT opened_ts, closed_ts FROM assessments WHERE opened_ts BETWEEN ?1 AND ?2`).bind(since, until),
+      ]);
+      const assessmentWindows = (assessments.results as any[]).map((r) => ({
+        tStart: r.opened_ts, tEnd: r.closed_ts ?? now,
+      }));
+      return json({ generatedAt: now, events: events.results, assessmentWindows });
+    }
+
+    if (url.pathname === "/api/labels/materialize/random-negatives") {
+      const since = Number(url.searchParams.get("since") ?? 0);
+      const until = Number(url.searchParams.get("until") ?? now);
+      if (!Number.isFinite(since) || !Number.isFinite(until)) return json({ error: "bad range" }, 400);
+      const [vesselDays, assessments, events] = await env.DB.batch([
+        env.DB.prepare(`
+          SELECT v.mmsi AS vessel_id,
+                 CAST((p.ts / 86400000) AS INTEGER) * 86400000 AS day_ms,
+                 COUNT(p.ts) AS positions
+          FROM positions p JOIN vessels v ON v.mmsi = p.mmsi
+          WHERE p.ts BETWEEN ?1 AND ?2
+          GROUP BY v.mmsi, day_ms HAVING positions >= 20`).bind(since, until),
+        env.DB.prepare(`SELECT opened_ts, closed_ts FROM assessments WHERE opened_ts BETWEEN ?1 AND ?2`).bind(since, until),
+        env.DB.prepare(`SELECT DISTINCT mmsi, CAST((start_ts / 86400000) AS INTEGER) * 86400000 AS day_ms FROM events WHERE start_ts BETWEEN ?1 AND ?2`).bind(since, until),
+      ]);
+      const eventDays = new Set((events.results as any[]).map((e) => `${e.mmsi}:${e.day_ms}`));
+      const eligibleDays = (vesselDays.results as any[])
+        .filter((r) => !eventDays.has(`${r.vessel_id}:${r.day_ms}`))
+        .map((r) => ({ vessel_id: String(r.vessel_id), day_ms: Number(r.day_ms) }));
+      const skipWindows = (assessments.results as any[]).map((r) => ({ tStart: r.opened_ts, tEnd: r.closed_ts ?? now }));
+      return json({ generatedAt: now, vesselDays: eligibleDays, skipWindows });
+    }
+
+    if (url.pathname === "/api/labels/materialize" && req.method === "POST") {
+      let body: any;
+      try { body = await req.json(); } catch { return json({ error: "bad json" }, 400); }
+      const candidates = body?.candidates as any[] | undefined;
+      if (!Array.isArray(candidates)) return json({ error: "candidates required" }, 400);
+      if (candidates.length > 100) return json({ error: "too many candidates (max 100)" }, 400);
+      for (const c of candidates) {
+        if (typeof c?.id !== "string" || !/^[0-9a-f]{16}$/.test(c.id)) return json({ error: "bad candidate: id" }, 400);
+        if (typeof c.vesselId !== "string" || !/^\d{1,9}$/.test(c.vesselId)) return json({ error: "bad candidate: vesselId" }, 400);
+        if (!Number.isInteger(c.tStart) || !Number.isInteger(c.tEnd) || c.tStart >= c.tEnd) return json({ error: "bad candidate: window" }, 400);
+        if (!(LABEL_SOURCES as readonly string[]).includes(c.source)) return json({ error: "bad candidate: source" }, 400);
+        if (c.sourceRef !== null && (typeof c.sourceRef !== "string" || c.sourceRef.length > 200)) return json({ error: "bad candidate: sourceRef" }, 400);
+        if (!Number.isInteger(c.createdAt) || c.createdAt < 0) return json({ error: "bad candidate: createdAt" }, 400);
+        if (!Array.isArray(c.eventIds) || !c.eventIds.every((e: unknown) => typeof e === "string" && e.length <= 100)) return json({ error: "bad candidate: eventIds" }, 400);
+      }
+      const { SHARED_INSERT_SQL, toInsertRow } = await import("./materializer");
+      const stmts = candidates.map((c) => env.DB.prepare(SHARED_INSERT_SQL).bind(...toInsertRow(c)));
+      const BATCH_SIZE = 100;
+      let inserted = 0;
+      for (let i = 0; i < stmts.length; i += BATCH_SIZE) {
+        const chunk = stmts.slice(i, i + BATCH_SIZE);
+        const results = await env.DB.batch(chunk);
+        inserted += results.reduce((a: number, r: any) => a + (r.meta?.changes ?? 0), 0);
+      }
+      return json({ ok: true, inserted });
+    }
+
     const trackMatch = /^\/api\/vessel\/(\d{1,9})\/track$/.exec(url.pathname);
     if (trackMatch) {
       const mmsi = Number(trackMatch[1]);
-      const winMs = parseWindow(url.searchParams.get("window"));
-      if (winMs === null) return json({ error: "bad window" }, 400);
+      const fromRaw = url.searchParams.get("from");
+      const toRaw = url.searchParams.get("to");
+      let fromTs: number, toTs: number;
+      if (fromRaw !== null || toRaw !== null) {
+        const from = Number(fromRaw), to = Number(toRaw);
+        if (!Number.isFinite(from) || !Number.isFinite(to) || from >= to) return json({ error: "bad range" }, 400);
+        fromTs = from; toTs = to;
+      } else {
+        const winMs = parseWindow(url.searchParams.get("window"));
+        if (winMs === null) return json({ error: "bad window" }, 400);
+        fromTs = now - winMs; toTs = now;
+      }
       const vessel = await env.DB.prepare(`SELECT mmsi FROM vessels WHERE mmsi = ?1`).bind(mmsi).first<any>();
       if (!vessel) return json({ error: "unknown vessel" }, 404);
-      // On-demand GFW backfill (24 h cache). A GFW failure must not block our own points (spec §4).
       const { error: gfwError } = await gfwBackfillVessel(env, mmsi, now);
       const [points, gfw] = await Promise.all([
-        env.DB.prepare(`SELECT ts, lon, lat, sog, cog FROM positions WHERE mmsi = ?1 AND ts >= ?2 ORDER BY ts ASC`)
-          .bind(mmsi, now - winMs).all<any>(),
-        env.DB.prepare(`SELECT id, type, lon, lat, start_ts, end_ts FROM gfw_events WHERE mmsi = ?1 AND start_ts >= ?2 ORDER BY start_ts ASC`)
-          .bind(mmsi, now - winMs).all<any>(),
+        env.DB.prepare(`SELECT ts, lon, lat, sog, cog FROM positions WHERE mmsi = ?1 AND ts BETWEEN ?2 AND ?3 ORDER BY ts ASC`)
+          .bind(mmsi, fromTs, toTs).all<any>(),
+        env.DB.prepare(`SELECT id, type, lon, lat, start_ts, end_ts FROM gfw_events WHERE mmsi = ?1 AND start_ts BETWEEN ?2 AND ?3 ORDER BY start_ts ASC`)
+          .bind(mmsi, fromTs, toTs).all<any>(),
       ]);
       return json({
         generatedAt: now,

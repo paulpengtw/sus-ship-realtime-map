@@ -1,0 +1,11 @@
+{
+  "$schema": "curated-incidents-v1",
+  "entries": [
+    {
+      "mmsi": 445000000,
+      "tStart": 1704067200000,
+      "tEnd": 1704153600000,
+      "note": "seed:placeholder — replace with real C4ADS or GFW IUU case once curated (spec §3b)"
+    }
+  ]
+}

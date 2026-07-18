@@ -61,6 +61,8 @@ export const CONFIG = {
   watchdogMs: 2 * 60 * 1000,
   backoffMinMs: 1000,
   backoffMaxMs: 60 * 1000,
+  labelingRandomNegSamplesPerDay: 5,
+  labelingRandomNegSeed: "phase-0-seed",
 
   // Speed anomaly detector (spec §5)
   speedTypeMaxExceedCount: 3,

@@ -147,3 +147,9 @@ html, body, #map { height: 100%; background: var(--bg); color: var(--text); }
 .cat-badge { border-radius: 3px; padding: 0 5px; font-size: 10px; color: #0b1220; font-weight: 700; }
 .narrative { color: #aab6c8; font-size: 11px; margin: 2px 0; }
 .assess-card { margin: 6px 0; padding: 6px 8px; background: rgba(255,255,255,0.03); }
+body.mode-review #region-switcher, body.mode-review #timeline, body.mode-review #stats-bar { display: none; }
+li.review-header { padding: 6px 8px; color: #7d8aa0; }
+li.review-row { padding: 4px 8px; cursor: pointer; }
+li.review-row:hover { background: rgba(255,255,255,0.05); }
+.review-source { color: #7d8aa0; margin-left: 8px; font-size: 11px; }
+.review-badge { padding: 4px 8px; color: #4cc3ff; font-size: 11px; }

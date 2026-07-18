@@ -1,5 +1,5 @@
-// web/src/hash.ts — shareable permalinks: #v=<lon>,<lat>,<zoom>&vessel=<mmsi>&filter=<type>
-export interface HashState { view?: { lon: number; lat: number; zoom: number }; vessel?: number; filter?: string }
+// web/src/hash.ts — shareable permalinks: #v=<lon>,<lat>,<zoom>&vessel=<mmsi>&filter=<type>&mode=review
+export interface HashState { view?: { lon: number; lat: number; zoom: number }; vessel?: number; filter?: string; mode?: "review" }
 
 export function readHash(): HashState {
   const params = new URLSearchParams(location.hash.slice(1));
@@ -10,6 +10,7 @@ export function readHash(): HashState {
   if (Number.isInteger(m) && m > 0) out.vessel = m;
   const f = params.get("filter");
   if (f) out.filter = f;
+  if (params.get("mode") === "review") out.mode = "review";
   return out;
 }
 
@@ -18,5 +19,6 @@ export function writeHash(state: HashState): void {
   if (state.view) params.set("v", `${state.view.lon.toFixed(4)},${state.view.lat.toFixed(4)},${state.view.zoom.toFixed(2)}`);
   if (state.vessel) params.set("vessel", String(state.vessel));
   if (state.filter) params.set("filter", state.filter);
+  if (state.mode) params.set("mode", state.mode);
   history.replaceState(null, "", `#${params}`);
 }
