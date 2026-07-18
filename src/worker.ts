@@ -1,7 +1,7 @@
 export { TrackerDO } from "./do/tracker";
 import { CONFIG } from "./config";
 import { gfwBackfillVessel, gfwSync } from "./gfw";
-import { LABEL_SOURCES, rowToCandidate } from "./labeling";
+import { LABEL_SOURCES, LABEL_VERDICTS, rowToCandidate } from "./labeling";
 import { decimatePoints, parseWindow } from "./trajectories";
 import { THREAT_CATEGORIES } from "./types";
 
@@ -233,6 +233,44 @@ export default {
         generatedAt: now, bySource, byVerdict,
         imbalance: { threatVsBenign: byVerdict.threat / Math.max(byVerdict.benign, 1) },
       });
+    }
+
+    if (url.pathname === "/api/labels" && req.method === "POST") {
+      let body: any;
+      try { body = await req.json(); } catch { return json({ error: "bad json" }, 400); }
+      const { incidentId, labeler, verdict, intentCategories, labelerConfidence, notes } = body ?? {};
+      if (typeof incidentId !== "string" || !incidentId) return json({ error: "incidentId required" }, 400);
+      if (typeof labeler !== "string" || !labeler) return json({ error: "labeler required" }, 400);
+      if (!(LABEL_VERDICTS as readonly string[]).includes(verdict)) return json({ error: "bad verdict" }, 400);
+      const needsIntent = verdict === "threat" || verdict === "suspicious";
+      if (needsIntent) {
+        if (!Array.isArray(intentCategories) || intentCategories.length === 0
+            || !intentCategories.every((c: string) => (THREAT_CATEGORIES as readonly string[]).includes(c))) {
+          return json({ error: "intentCategories required and must be non-empty ThreatCategory[]" }, 400);
+        }
+      } else if (Array.isArray(intentCategories) && intentCategories.length > 0) {
+        return json({ error: "intentCategories only for threat/suspicious" }, 400);
+      }
+      if (labelerConfidence !== undefined && !(Number.isInteger(labelerConfidence) && labelerConfidence >= 1 && labelerConfidence <= 5)) {
+        return json({ error: "labelerConfidence must be integer 1..5" }, 400);
+      }
+      const existsRow = await env.DB.prepare(`SELECT id FROM candidate_incidents WHERE id = ?1`).bind(incidentId).first<any>();
+      if (!existsRow) return json({ error: "unknown incidentId" }, 404);
+      try {
+        const result = await env.DB.prepare(
+          `INSERT INTO labels (incident_id, labeler, ts, verdict, intent_categories, labeler_confidence, notes)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
+        ).bind(
+          incidentId, labeler, now, verdict,
+          needsIntent ? JSON.stringify(intentCategories) : null,
+          labelerConfidence ?? null,
+          typeof notes === "string" ? notes : null,
+        ).run();
+        return json({ ok: true, id: result.meta.last_row_id }, 200);
+      } catch (err) {
+        if (String(err).match(/UNIQUE/i)) return json({ error: "already labeled" }, 409);
+        throw err;
+      }
     }
 
     const trackMatch = /^\/api\/vessel\/(\d{1,9})\/track$/.exec(url.pathname);
