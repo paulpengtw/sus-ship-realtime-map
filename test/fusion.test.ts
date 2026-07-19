@@ -118,3 +118,42 @@ describe("fusion scoring and assessment lifecycle (open/update)", () => {
     expect(maxCategoryScore(s).score).toBeCloseTo(0.45, 2);
   });
 });
+
+describe("fusion: harbor-anchored dampener", () => {
+  // Exclusion polygon covers ~(120.15..120.25, 21.99..22.01) — overlaps the C1 corridor
+  // (LineString [[120.0,22.0],[121.0,22.0]]) exactly where the shared `ev()` helper places events.
+  const harbor = {
+    type: "FeatureCollection",
+    features: [{
+      type: "Feature",
+      properties: { name: "test-harbor" },
+      geometry: {
+        type: "Polygon",
+        coordinates: [[[120.15, 21.99], [120.25, 21.99], [120.25, 22.01], [120.15, 22.01], [120.15, 21.99]]],
+      },
+    }],
+  };
+  const geoWithHarbor = new GeoContext(cables as any, harbor as any, 1000, noFc as any, 5000);
+
+  // Ring fix at the event location with navStatus=1 so lastActivity classifies "anchored".
+  function anchoredState(mmsi: number) {
+    const s = newVesselState(mmsi, T0);
+    s.ring.push({ mmsi, lon: 120.2, lat: 22.0, sog: 0.5, cog: 0, heading: 0, navStatus: 1, ts: T0 });
+    s.lastSeen = T0;
+    return s;
+  }
+
+  it("anchor_drag inside declared harbor produces no signal and opens no assessment", () => {
+    const s = anchoredState(101);
+    const anchorDragEv = ev({
+      type: "anchor_drag",
+      id: "anchor_drag-101-1",
+      evidence: { corridor: "C1", cogStdDeg: 80, meanSogKn: 1.2, displacementM: 200 },
+    });
+    expect(signalsFor(anchorDragEv, s, geoWithHarbor, CONFIG)).toEqual([]);
+    const changed = applyEventToFusion(s, anchorDragEv, geoWithHarbor, CONFIG, T0);
+    expect(changed).toEqual([]);
+    expect(s.assessments.cable_interference).toBeUndefined();
+    expect(s.categories.cable_interference.score).toBe(0);
+  });
+});

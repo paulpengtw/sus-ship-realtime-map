@@ -50,6 +50,14 @@ export function clauseFor(ev: AnomalyEvent): string {
 
 // Spec §4b weight table. Returns at most one signal per category (max matching class).
 export function signalsFor(ev: AnomalyEvent, s: VesselState, geo: GeoContext, cfg: Config): { category: ThreatCategory; cls: SignalClass; summary: string }[] {
+  // Harbor-anchored dampener: a vessel that is both geometrically inside a declared
+  // harbor and reporting an anchored/moored activity never contributes category score,
+  // regardless of which detector produced the event.
+  const act = lastActivity(s, geo, cfg);
+  if ((act === "moored" || act === "anchored") && geo.inExclusion([ev.lon, ev.lat])) {
+    return [];
+  }
+
   const hits = new Map<ThreatCategory, SignalClass>();
   const raise = (cat: ThreatCategory, cls: SignalClass) => {
     const cur = hits.get(cat);
