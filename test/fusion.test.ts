@@ -186,7 +186,7 @@ describe("fusion: harbor-anchored dampener", () => {
 
   it("identity_change inside harbor + anchored suppresses entirely (tightens weak dampener)", () => {
     // Positive control below proves the OUTSIDE-harbor path still hits the existing weak
-    // demotion at fusion.ts:80-82 (moored/anchored → weak, not medium).
+    // demotion at fusion.ts:88-90 (moored/anchored → weak, not medium).
     const idChangeEv = (mmsi: number) => ev({
       type: "identity",
       mmsi,
