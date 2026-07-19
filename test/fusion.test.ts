@@ -156,4 +156,52 @@ describe("fusion: harbor-anchored dampener", () => {
     expect(s.assessments.cable_interference).toBeUndefined();
     expect(s.categories.cable_interference.score).toBe(0);
   });
+
+  it("anchor_drag outside every exclusion still fires normally (regression guard)", () => {
+    // No exclusions — proves the gate is scoped, not blanket.
+    const geoNoHarbor = new GeoContext(cables as any, noFc as any, 1000, noFc as any, 5000);
+    const s = anchoredState(102);
+    const anchorDragEv = ev({
+      type: "anchor_drag",
+      id: "anchor_drag-102-1",
+      evidence: { corridor: "C1", cogStdDeg: 80, meanSogKn: 1.2, displacementM: 200 },
+    });
+    const sig = signalsFor(anchorDragEv, s, geoNoHarbor, CONFIG);
+    expect(sig).toEqual([expect.objectContaining({ category: "cable_interference", cls: "strong" })]);
+    const changed = applyEventToFusion(s, anchorDragEv, geoNoHarbor, CONFIG, T0);
+    expect(changed).toHaveLength(1);
+    expect(changed[0]).toMatchObject({ category: "cable_interference", status: "open" });
+  });
+
+  it("loitering inside harbor + anchored produces no signal (fusion-layer symmetry)", () => {
+    // The loitering detector already guards on !inExclusion, so this scenario cannot arise
+    // in production for loitering. This test locks the fusion gate's symmetry across every
+    // detector — if a future detector emits without a harbor guard, fusion still filters it.
+    // The detector-level declaration at test/loitering.test.ts:67 (anchoring over a cable
+    // OUTSIDE a declared harbor IS the threat) remains valid; the fusion gate only fires
+    // when both harbor AND anchored hold.
+    const s = anchoredState(103);
+    expect(signalsFor(loiterEv("h1"), s, geoWithHarbor, CONFIG)).toEqual([]);
+  });
+
+  it("identity_change inside harbor + anchored suppresses entirely (tightens weak dampener)", () => {
+    // Positive control below proves the OUTSIDE-harbor path still hits the existing weak
+    // demotion at fusion.ts:80-82 (moored/anchored → weak, not medium).
+    const idChangeEv = (mmsi: number) => ev({
+      type: "identity",
+      mmsi,
+      id: `identity-${mmsi}-change`,
+      evidence: { kind: "identity_change", prevName: "OLD", newName: "NEW", prevCallsign: "X1", newCallsign: "X2" },
+    });
+
+    // Inside harbor + anchored → suppressed.
+    const sInside = anchoredState(104);
+    expect(signalsFor(idChangeEv(104), sInside, geoWithHarbor, CONFIG)).toEqual([]);
+
+    // Outside harbor + anchored → existing weak demotion still applies.
+    const geoNoHarbor = new GeoContext(cables as any, noFc as any, 1000, noFc as any, 5000);
+    const sOutside = anchoredState(105);
+    const sigOutside = signalsFor(idChangeEv(105), sOutside, geoNoHarbor, CONFIG);
+    expect(sigOutside).toEqual([expect.objectContaining({ category: "identity_deception", cls: "weak" })]);
+  });
 });
