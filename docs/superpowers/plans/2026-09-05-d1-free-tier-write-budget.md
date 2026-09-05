@@ -35,7 +35,7 @@
 
 **Interfaces:**
 - Produces: `flushWrites(db: D1Database, p: PendingWrites): Promise<number>` — returns the sum of `meta.rows_written` over every executed statement; `0` when nothing to write. Batches are sent in chunks of `D1_BATCH_CHUNK = 100` statements.
-- Produces: `positions` table is `WITHOUT ROWID`, PK `(mmsi, ts)`, no other index; `vessels` has no secondary index.
+- Produces: `positions` table is `WITHOUT ROWID`, PK `(mmsi, ts)`, no other index; `vessels` keeps only `idx_vessels_region` (`idx_vessels_last_ts` dropped).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -65,11 +65,11 @@ Append to the `describe("db persistence")` block in `test/db.test.ts`:
     expect(n.n).toBe(250);
   });
 
-  it("migration 0007 leaves positions WITHOUT ROWID and no secondary indexes on positions/vessels", async () => {
+  it("migration 0007 leaves positions WITHOUT ROWID with no secondary index, and drops idx_vessels_last_ts", async () => {
     const idx = await env.DB.prepare(
-      `SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name IN ('positions', 'vessels') AND name NOT LIKE 'sqlite_autoindex%'`,
+      `SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name IN ('positions', 'vessels') AND name NOT LIKE 'sqlite_autoindex%' ORDER BY name`,
     ).all<any>();
-    expect(idx.results).toEqual([]);
+    expect(idx.results.map((r: any) => r.name)).toEqual(["idx_vessels_region"]); // region index (migration 0002) stays: /api/trajectories filters vessels by region
     const tbl = await env.DB.prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'positions'`).first<any>();
     expect(tbl.sql).toMatch(/WITHOUT ROWID/i);
   });
