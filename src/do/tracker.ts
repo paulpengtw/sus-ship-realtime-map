@@ -25,7 +25,7 @@ export class TrackerDO implements DurableObject, Rpc.DurableObjectBranded {
   hydrated = false;
   private lastPersisted = new Map<number, AisPosition>();   // breadcrumb downsampling reference
   private lastVesselWrite = new Map<number, VesselWriteRecord>(); // registry write-on-change reference
-  private trackedMmsi = new Set<number>();                  // vessels whose ring was already backfilled
+  private trackedMmsi = new Set<number>();                  // intentionally never pruned so a vessel's ring is backfilled only once
   private lastPruneAt = 0;
   private parseFailures = 0; // logged as one summary line per alarm window
 
@@ -218,7 +218,10 @@ export class TrackerDO implements DurableObject, Rpc.DurableObjectBranded {
     // 4. Daily tiered thinning (spec §3: was hourly; deletes count as rows_written).
     if (now - this.lastPruneAt > CONFIG.pruneIntervalMs) {
       this.lastPruneAt = now;
-      try { await thinPositions(this.env.DB, now, CONFIG.retentionTiers); } catch (err) { console.error(err); }
+      try {
+        const thinRows = await thinPositions(this.env.DB, now, CONFIG.retentionTiers);
+        this.meter.record(thinRows, now);
+      } catch (err) { console.error(err); }
     }
 
     await this.ctx.storage.setAlarm(now + CONFIG.alarmIntervalMs);

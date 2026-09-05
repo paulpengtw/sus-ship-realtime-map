@@ -93,8 +93,8 @@ export interface RetentionTier { minAgeMs: number; maxAgeMs: number; bucketMs: n
 
 // Tiered thinning (trajectories spec §1): within each age tier keep the earliest point per
 // (mmsi, time-bucket); everything older than the last tier is deleted outright.
-export async function thinPositions(db: D1Database, now: number, tiers: readonly RetentionTier[]): Promise<void> {
-  if (!tiers.length) return;
+export async function thinPositions(db: D1Database, now: number, tiers: readonly RetentionTier[]): Promise<number> {
+  if (!tiers.length) return 0;
   const stmts = tiers.map((t) => db.prepare(
     `DELETE FROM positions
      WHERE ts >= ?1 AND ts < ?2
@@ -106,5 +106,8 @@ export async function thinPositions(db: D1Database, now: number, tiers: readonly
   ).bind(now - t.maxAgeMs, now - t.minAgeMs, t.bucketMs));
   const oldestMs = Math.max(...tiers.map((t) => t.maxAgeMs));
   stmts.push(db.prepare(`DELETE FROM positions WHERE ts < ?1`).bind(now - oldestMs));
-  await db.batch(stmts);
+  const results = await db.batch(stmts);
+  let rowsWritten = 0;
+  for (const r of results) rowsWritten += r.meta?.rows_written ?? 0;
+  return rowsWritten;
 }
