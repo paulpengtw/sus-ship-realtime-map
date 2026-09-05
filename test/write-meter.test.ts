@@ -24,10 +24,24 @@ describe("WriteMeter", () => {
     expect(m.optionalAllowed(next)).toBe(true);
   });
 
+  it("resets when the clock moves to an earlier UTC day", () => {
+    const m = new WriteMeter(100);
+    m.record(50, NOON);
+    const previous = Date.UTC(2026, 8, 4, 23, 59);
+    expect(utcDay(previous)).toBe("2026-09-04");
+    expect(m.usedToday(previous)).toBe(0);
+  });
+
   it("ignores negative counts", () => {
     const m = new WriteMeter(10);
     m.record(-5, NOON);
     expect(m.usedToday(NOON)).toBe(0);
+  });
+
+  it("pauses optional writes immediately with a zero budget", () => {
+    const m = new WriteMeter(0);
+    expect(m.optionalAllowed(NOON)).toBe(false);
+    expect(m.status(NOON).optionalWritesPaused).toBe(true);
   });
 
   it("reset() forgets the day and the count", () => {

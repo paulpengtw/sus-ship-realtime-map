@@ -13,6 +13,7 @@ export class WriteMeter {
   constructor(private readonly budget: number) {}
 
   private roll(now: number): void {
+    // Any UTC-day change, forward or backward, starts fresh; one DO's Date.now() makes backward rolls clock skew and errs toward allowing writes.
     const d = utcDay(now);
     if (d !== this.day) { this.day = d; this.used = 0; }
   }
@@ -36,7 +37,7 @@ export class WriteMeter {
     return { day: this.day, usedToday: this.used, budget: this.budget, optionalWritesPaused: !this.optionalAllowed(now) };
   }
 
-  /** Test hook (TrackerDO.resetForTests). */
+  /** Forgets the current day and count; TrackerDO's test reset uses this. */
   reset(): void {
     this.day = "";
     this.used = 0;
