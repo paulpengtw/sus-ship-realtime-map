@@ -54,4 +54,36 @@ describe("db persistence", () => {
     expect(states[0].ring).toHaveLength(1);
     expect(states[0].ring[0].lon).toBeCloseTo(120.2);
   });
+
+  it("flushWrites returns the number of rows D1 reports written", async () => {
+    const n = await flushWrites(env.DB, samplePending());
+    expect(n).toBeGreaterThanOrEqual(3); // ≥ 1 vessel + 1 position + 1 event
+    expect(await flushWrites(env.DB, newPendingWrites())).toBe(0);
+  });
+
+  it("positions use INSERT OR IGNORE — a re-flushed (mmsi, ts) keeps the first row", async () => {
+    const p = samplePending();
+    await flushWrites(env.DB, p);
+    p.positions[0] = { ...p.positions[0], lon: 999 };
+    await flushWrites(env.DB, p);
+    const row = await env.DB.prepare("SELECT lon FROM positions WHERE mmsi = 412000001").first<any>();
+    expect(row.lon).toBeCloseTo(120.2);
+  });
+
+  it("flushWrites chunks large batches (more than 100 statements)", async () => {
+    const p = newPendingWrites();
+    for (let i = 0; i < 250; i++) p.positions.push({ mmsi: 412000001, lon: 120, lat: 22, sog: 1, cog: 0, heading: null, ts: T0 + i * 1000 });
+    await flushWrites(env.DB, p);
+    const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM positions").first<any>();
+    expect(n.n).toBe(250);
+  });
+
+  it("migration 0007 leaves positions WITHOUT ROWID with no secondary index, and drops idx_vessels_last_ts", async () => {
+    const idx = await env.DB.prepare(
+      `SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name IN ('positions', 'vessels') AND name NOT LIKE 'sqlite_autoindex%' ORDER BY name`,
+    ).all<any>();
+    expect(idx.results.map((r: any) => r.name)).toEqual(["idx_vessels_region"]); // region index (migration 0002) stays: /api/trajectories filters vessels by region
+    const tbl = await env.DB.prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'positions'`).first<any>();
+    expect(tbl.sql).toMatch(/WITHOUT ROWID/i);
+  });
 });

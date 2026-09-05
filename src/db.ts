@@ -13,7 +13,9 @@ export function newPendingWrites(): PendingWrites {
   return { positions: [], events: [], vessels: new Map(), assessments: new Map() };
 }
 
-export async function flushWrites(db: D1Database, p: PendingWrites): Promise<void> {
+const D1_BATCH_CHUNK = 100; // statements per db.batch(); keeps each request well under D1's size limits
+
+export async function flushWrites(db: D1Database, p: PendingWrites): Promise<number> {
   const stmts: D1PreparedStatement[] = [];
 
   for (const s of p.vessels.values()) {
@@ -33,7 +35,7 @@ export async function flushWrites(db: D1Database, p: PendingWrites): Promise<voi
 
   for (const pos of p.positions) {
     stmts.push(db.prepare(
-      `INSERT OR REPLACE INTO positions (mmsi, ts, lon, lat, sog, cog) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+      `INSERT OR IGNORE INTO positions (mmsi, ts, lon, lat, sog, cog) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
     ).bind(pos.mmsi, pos.ts, pos.lon, pos.lat, pos.sog, pos.cog));
   }
 
@@ -53,7 +55,12 @@ export async function flushWrites(db: D1Database, p: PendingWrites): Promise<voi
     ).bind(a.id, a.mmsi, a.category, a.status, a.confidence, a.openedTs, a.updatedTs, a.closedTs, a.region ?? null, a.narrative, JSON.stringify(a.evidence), a.lastLon, a.lastLat));
   }
 
-  if (stmts.length) await db.batch(stmts);
+  let rowsWritten = 0;
+  for (let i = 0; i < stmts.length; i += D1_BATCH_CHUNK) {
+    const results = await db.batch(stmts.slice(i, i + D1_BATCH_CHUNK));
+    for (const r of results) rowsWritten += r.meta?.rows_written ?? 0;
+  }
+  return rowsWritten;
 }
 
 export async function loadRecentVesselStates(db: D1Database, sinceTs: number): Promise<VesselState[]> {
