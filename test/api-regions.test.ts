@@ -1,6 +1,7 @@
 // test/api-regions.test.ts
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
+import { seedTracker, vesselAt } from "./helpers/tracker";
 
 const T0 = Date.now() - 10 * 60_000;
 
@@ -16,6 +17,10 @@ async function seed() {
                     VALUES ('e-kr', 'loitering', 3, 440000001, 129.3, 34.7, ?1, NULL, '{}', 'kr')`).bind(T0),
     env.DB.prepare(`INSERT INTO events (id, type, severity, mmsi, lon, lat, start_ts, end_ts, evidence, region)
                     VALUES ('e-tw', 'ais_gap', 2, 416000001, 121.5, 24.9, ?1, NULL, '{}', 'tw')`).bind(T0),
+  ]);
+  await seedTracker([
+    vesselAt(440000001, 129.3, 34.7, T0, { name: "KR SHIP", callsign: "DS1", region: "kr", shipType: 70, destination: "BUSAN", dimBow: 100, dimStern: 20, dimPort: 10, dimStarboard: 12 }),
+    vesselAt(416000001, 121.5, 24.9, T0, { name: "TW SHIP", callsign: "BV1", region: "tw" }),
   ]);
 }
 

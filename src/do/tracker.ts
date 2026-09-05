@@ -5,16 +5,19 @@ import { GeoContext } from "../geo/context";
 import { Tracker } from "../pipeline";
 import { parseFrame } from "../aisstream";
 import { haversineM } from "../geo/geo";
+import { buildSnapshot, liveVessel, vesselCounts } from "../snapshot";
 import { newVesselState, type AisPosition } from "../types";
 import type { Env } from "../worker";
 
-export class TrackerDO implements DurableObject {
-  private tracker = new Tracker(new GeoContext());
+export class TrackerDO implements DurableObject, Rpc.DurableObjectBranded {
+  declare [Rpc.__DURABLE_OBJECT_BRAND]: never;
+  // Public for tests (cloudflare:test runInDurableObject); production code only touches them from inside this class.
+  readonly tracker = new Tracker(new GeoContext());
   private pending: PendingWrites = newPendingWrites();
   private ws: WebSocket | null = null;
   private lastWsMessageAt = 0;
   private backoffMs: number = CONFIG.backoffMinMs;
-  private hydrated = false;
+  hydrated = false;
   private lastPersisted = new Map<number, AisPosition>(); // downsampling reference
   private lastPruneAt = 0;
   private parseFailures = 0; // logged as one summary line per alarm window
@@ -23,18 +26,49 @@ export class TrackerDO implements DurableObject {
 
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
+    const now = Date.now();
     if (url.pathname === "/ensure") {
       await this.ensureRunning();
-      return Response.json({
-        connected: this.ws !== null && this.ws.readyState === WebSocket.READY_STATE_OPEN,
-        vessels: this.tracker.states.size,
-        lastWsMessageAt: this.lastWsMessageAt,
-      });
+      return Response.json(this.status());
+    }
+    if (url.pathname === "/status") return Response.json(this.status());
+    if (url.pathname === "/snapshot") {
+      await this.hydrate();
+      return Response.json(buildSnapshot(this.tracker.states.values(), now, url.searchParams.get("region") ?? ""));
+    }
+    if (url.pathname === "/vessel-counts") {
+      await this.hydrate();
+      return Response.json(vesselCounts(this.tracker.states.values(), now));
+    }
+    const vesselMatch = /^\/vessel\/(\d{1,9})$/.exec(url.pathname);
+    if (vesselMatch) {
+      await this.hydrate();
+      const v = liveVessel(this.tracker.states.get(Number(vesselMatch[1])));
+      return v ? Response.json(v) : new Response("unknown vessel", { status: 404 });
     }
     return new Response("not found", { status: 404 });
   }
 
-  private async ensureRunning(): Promise<void> {
+  status() {
+    return {
+      connected: this.ws !== null && this.ws.readyState === WebSocket.READY_STATE_OPEN,
+      vessels: this.tracker.states.size,
+      lastWsMessageAt: this.lastWsMessageAt,
+    };
+  }
+
+  /** Test hook: forget all in-memory state and skip D1 hydration. */
+  resetForTests(): void {
+    this.hydrated = true;
+    this.tracker.states.clear();
+    this.tracker.drainChangedAssessments();
+    this.pending = newPendingWrites();
+    this.lastPersisted.clear();
+    this.lastPruneAt = 0;
+  }
+
+  /** Load recent vessels + open assessments from D1 once per instance lifetime. */
+  private async hydrate(): Promise<void> {
     if (!this.hydrated) {
       this.hydrated = true;
       const states = await loadRecentVesselStates(this.env.DB, Date.now() - 6 * 3_600_000);
@@ -63,6 +97,10 @@ export class TrackerDO implements DurableObject {
       //      so the gap-detector cadence gate suppresses ais_gap detection until
       //      enough fresh fixes accumulate post-restart to re-establish cadence.
     }
+  }
+
+  private async ensureRunning(): Promise<void> {
+    await this.hydrate();
     if ((await this.ctx.storage.getAlarm()) === null) {
       await this.ctx.storage.setAlarm(Date.now() + CONFIG.alarmIntervalMs);
     }

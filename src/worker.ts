@@ -2,6 +2,7 @@ export { TrackerDO } from "./do/tracker";
 import { CONFIG } from "./config";
 import { gfwBackfillVessel, gfwSync } from "./gfw";
 import { LABEL_SOURCES, LABEL_VERDICTS, rowToCandidate } from "./labeling";
+import type { LiveVessel } from "./snapshot";
 import { decimatePoints, parseWindow } from "./trajectories";
 import { THREAT_CATEGORIES } from "./types";
 
@@ -17,10 +18,13 @@ export interface Env {
 const CORS = { "access-control-allow-origin": "*", "content-type": "application/json" };
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: CORS });
 
+function trackerFetch(env: Env, path: string): Promise<Response> {
+  return env.TRACKER.get(env.TRACKER.idFromName("singleton")).fetch(`https://do${path}`);
+}
+
 function ensureTracker(env: Env, ctx: ExecutionContext): void {
   if (env.TEST_MIGRATIONS) return;
-  const stub = env.TRACKER.get(env.TRACKER.idFromName("singleton"));
-  ctx.waitUntil(stub.fetch("https://do/ensure").catch((e) => console.error("ensure failed:", e)));
+  ctx.waitUntil(trackerFetch(env, "/ensure").catch((e) => console.error("ensure failed:", e)));
 }
 
 const rowToEvent = (r: any) => ({
@@ -48,8 +52,15 @@ export default {
     const url = new URL(req.url);
     if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(req);
 
-    ensureTracker(env, ctx); // any API hit keeps the ingest DO alive
     const now = Date.now();
+
+    if (url.pathname === "/api/health") {
+      const res = await trackerFetch(env, "/status");
+      if (!res.ok) return json({ error: "tracker unavailable" }, 503);
+      return json({ generatedAt: now, ...(await res.json<Record<string, unknown>>()) });
+    }
+
+    ensureTracker(env, ctx); // any API hit keeps the ingest DO alive
 
     if (url.pathname === "/api/assessments") {
       const region = regionParam(url);
@@ -66,39 +77,9 @@ export default {
     if (url.pathname === "/api/snapshot") {
       const region = regionParam(url);
       if (region === null) return json({ error: "bad region" }, 400);
-      const baseSelect = `
-        SELECT v.*, a.cats FROM vessels v
-        LEFT JOIN (
-          SELECT mmsi, json_group_array(json_object('category', category, 'confidence', confidence)) AS cats
-          FROM assessments WHERE status = 'open' GROUP BY mmsi
-        ) a ON a.mmsi = v.mmsi`;
-      const { results } = region
-        ? await env.DB.prepare(`${baseSelect} WHERE v.last_ts >= ?1 AND v.region = ?2`).bind(now - CONFIG.snapshotWindowMs, region).all<any>()
-        : await env.DB.prepare(`${baseSelect} WHERE v.last_ts >= ?1`).bind(now - CONFIG.snapshotWindowMs).all<any>();
-      const withAssess = results.map((r) => {
-        const assessments: { category: string; confidence: number }[] = JSON.parse(r.cats ?? "[]");
-        assessments.sort((a, b) => b.confidence - a.confidence);
-        return { ...r, assessments, maxConfidence: assessments[0]?.confidence ?? 0, topCategory: assessments[0]?.category ?? null };
-      }).sort((a, b) => b.maxConfidence - a.maxConfidence);
-      const newestTs = withAssess.reduce((m, r) => Math.max(m, r.last_ts), 0);
-      return json({
-        generatedAt: now,
-        newestTs: newestTs || null,
-        vessels: {
-          type: "FeatureCollection",
-          features: withAssess.map((r) => ({
-            type: "Feature",
-            geometry: { type: "Point", coordinates: [r.last_lon, r.last_lat] },
-            properties: {
-              mmsi: r.mmsi, name: r.name, sog: r.last_sog, cog: r.last_cog,
-              lastTs: r.last_ts, region: r.region ?? null, shipType: r.ship_type ?? null,
-              assessments: r.assessments, topCategory: r.topCategory,
-              maxConfidence: r.maxConfidence,
-              score: Math.round(r.maxConfidence * 5 * 10) / 10, // legacy, remove next release
-            },
-          })),
-        },
-      });
+      const res = await trackerFetch(env, `/snapshot?region=${region}`);
+      if (!res.ok) return json({ error: "tracker unavailable" }, 503);
+      return new Response(res.body, { status: 200, headers: CORS });
     }
 
     if (url.pathname === "/api/trajectories") {
@@ -159,9 +140,9 @@ export default {
 
     if (url.pathname === "/api/stats") {
       const DAY = 86_400_000;
-      const [vc, ac, e24, hist] = await env.DB.batch([
-        env.DB.prepare(`SELECT region, COUNT(*) AS c FROM vessels WHERE last_ts >= ?1 AND region IS NOT NULL GROUP BY region`)
-          .bind(now - CONFIG.snapshotWindowMs),
+      const countsRes = await trackerFetch(env, "/vessel-counts");
+      const counts = countsRes.ok ? await countsRes.json<Record<string, number>>() : {};
+      const [ac, e24, hist] = await env.DB.batch([
         env.DB.prepare(`SELECT region, COUNT(*) AS c FROM assessments WHERE status = 'open' AND region IS NOT NULL GROUP BY region`),
         env.DB.prepare(`SELECT region, COUNT(*) AS c FROM events WHERE start_ts >= ?1 AND region IS NOT NULL GROUP BY region`)
           .bind(now - DAY),
@@ -172,13 +153,12 @@ export default {
       const regions: Record<string, { vessels: number; activeAlerts: number; events24h: number }> = {};
       const histogram: Record<string, { day: string; counts: number[] }[]> = {};
       for (const r of CONFIG.regions) {
-        regions[r.id] = { vessels: 0, activeAlerts: 0, events24h: 0 };
+        regions[r.id] = { vessels: counts[r.id] ?? 0, activeAlerts: 0, events24h: 0 };
         histogram[r.id] = Array.from({ length: 14 }, (_, i) => ({
           day: new Date(now - (13 - i) * DAY).toISOString().slice(0, 10),
           counts: [0, 0, 0],
         }));
       }
-      for (const row of vc.results as any[]) if (regions[row.region]) regions[row.region].vessels = row.c;
       for (const row of ac.results as any[]) if (regions[row.region]) regions[row.region].activeAlerts = row.c;
       for (const row of e24.results as any[]) if (regions[row.region]) regions[row.region].events24h = row.c;
       for (const row of hist.results as any[]) {
@@ -386,8 +366,20 @@ export default {
     const vesselMatch = /^\/api\/vessel\/(\d{1,9})$/.exec(url.pathname);
     if (vesselMatch) {
       const mmsi = Number(vesselMatch[1]);
-      const vessel = await env.DB.prepare(`SELECT * FROM vessels WHERE mmsi = ?1`).bind(mmsi).first<any>();
-      if (!vessel) return json({ error: "unknown vessel" }, 404);
+      const [row, liveRes] = await Promise.all([
+        env.DB.prepare(`SELECT * FROM vessels WHERE mmsi = ?1`).bind(mmsi).first<any>(),
+        trackerFetch(env, `/vessel/${mmsi}`),
+      ]);
+      let live: LiveVessel | null = null;
+      if (liveRes.ok) live = await liveRes.json<LiveVessel>();
+      else await liveRes.arrayBuffer();
+      if (!row && !live) return json({ error: "unknown vessel" }, 404);
+      const base: LiveVessel = live ?? {
+        mmsi: row.mmsi, name: row.name, callsign: row.callsign,
+        lon: row.last_lon, lat: row.last_lat, sog: row.last_sog, cog: row.last_cog, lastTs: row.last_ts,
+        region: row.region ?? null, shipType: row.ship_type ?? null, destination: row.destination ?? null,
+        dimBow: row.dim_bow ?? null, dimStern: row.dim_stern ?? null, dimPort: row.dim_port ?? null, dimStarboard: row.dim_starboard ?? null,
+      };
       const events = await env.DB.prepare(`SELECT * FROM events WHERE mmsi = ?1 ORDER BY start_ts DESC LIMIT 100`).bind(mmsi).all<any>();
       const assess = await env.DB.prepare(`SELECT * FROM assessments WHERE mmsi = ?1 ORDER BY updated_ts DESC LIMIT 20`).bind(mmsi).all<any>();
       const assessments = assess.results.map(rowToAssessment);
@@ -395,13 +387,8 @@ export default {
       return json({
         generatedAt: now,
         vessel: {
-          mmsi: vessel.mmsi, name: vessel.name, callsign: vessel.callsign,
-          lon: vessel.last_lon, lat: vessel.last_lat, sog: vessel.last_sog, cog: vessel.last_cog, lastTs: vessel.last_ts,
+          ...base,
           score: Math.round(maxConfidence * 5 * 10) / 10,
-          region: vessel.region ?? null, shipType: vessel.ship_type ?? null,
-          destination: vessel.destination ?? null,
-          dimBow: vessel.dim_bow ?? null, dimStern: vessel.dim_stern ?? null,
-          dimPort: vessel.dim_port ?? null, dimStarboard: vessel.dim_starboard ?? null,
         },
         events: events.results.map(rowToEvent),
         assessments,
