@@ -1,6 +1,7 @@
 // test/stats.test.ts
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
+import { seedTracker, vesselAt } from "./helpers/tracker";
 
 const NOW = Date.now();
 const T0 = NOW - 10 * 60_000;
@@ -23,6 +24,10 @@ describe("/api/stats", () => {
                       VALUES ('dark_activity-440000001-1', 440000001, 'dark_activity', 'open', 0.4, ?1, ?1, NULL, 'kr', 'x', '[]')`).bind(T0),
       env.DB.prepare(`INSERT INTO assessments (id, mmsi, category, status, confidence, opened_ts, updated_ts, closed_ts, region, narrative, evidence)
                       VALUES ('cable_interference-440000001-1', 440000001, 'cable_interference', 'closed', 0.1, ?1, ?1, ?1, 'kr', 'x', '[]')`).bind(NOW - 3 * DAY),
+    ]);
+    await seedTracker([
+      vesselAt(440000001, 129.3, 34.7, T0, { name: "KR", region: "kr" }),
+      vesselAt(440000002, 129.3, 34.7, T0 - 2 * 3_600_000, { name: "KR OLD", region: "kr" }),
     ]);
   });
 

@@ -1,8 +1,16 @@
 // test/api.test.ts
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
+import type { ThreatAssessment } from "../src/types";
+import { seedTracker, vesselAt } from "./helpers/tracker";
 
 const T0 = Date.now() - 10 * 60_000; // "10 minutes ago" so snapshot window includes it
+
+const OPEN_CABLE: ThreatAssessment = {
+  id: "cable_interference-412000001-1", mmsi: 412000001, category: "cable_interference", status: "open",
+  confidence: 0.62, openedTs: T0, updatedTs: T0, closedTs: null, region: "tw",
+  narrative: "Loitered 3.0 h over C1 corridor.", evidence: [], lastLon: 120.2, lastLat: 22.0,
+};
 
 async function seed() {
   await env.DB.batch([
@@ -21,6 +29,10 @@ async function seed() {
     env.DB.prepare(`INSERT INTO gfw_events VALUES ('gfw-1', 'gap', 412000001, 120.3, 22.1, ?1, ?2, '{}')`).bind(T0 - 3_600_000, T0),
     env.DB.prepare(`INSERT INTO assessments (id, mmsi, category, status, confidence, opened_ts, updated_ts, closed_ts, region, narrative, evidence)
                     VALUES ('cable_interference-412000001-1', 412000001, 'cable_interference', 'open', 0.62, ?1, ?1, NULL, 'tw', 'Loitered 3.0 h over C1 corridor.', '[]')`).bind(T0),
+  ]);
+  await seedTracker([
+    vesselAt(412000001, 120.2, 22.0, T0, { name: "TEST SHIP", callsign: "BXYZ1", region: "tw", assessments: { cable_interference: OPEN_CABLE } }),
+    vesselAt(412000002, 121.0, 23.0, T0 - 2 * 3_600_000, { name: "OLD SHIP" }),
   ]);
 }
 
@@ -90,6 +102,11 @@ describe("API worker", () => {
     await env.DB.batch([
       env.DB.prepare(`INSERT INTO vessels (mmsi, name, callsign, last_lon, last_lat, last_sog, last_cog, last_ts, score, score_ts)
                       VALUES (412000003, 'CALM SHIP', NULL, 121.5, 24.0, 8, 45, ?1, 0, ?1)`).bind(T0),
+    ]);
+    await seedTracker([
+      vesselAt(412000001, 120.2, 22.0, T0, { name: "TEST SHIP", callsign: "BXYZ1", region: "tw", assessments: { cable_interference: OPEN_CABLE } }),
+      vesselAt(412000002, 121.0, 23.0, T0 - 2 * 3_600_000, { name: "OLD SHIP" }),
+      vesselAt(412000003, 121.5, 24.0, T0, { name: "CALM SHIP" }),
     ]);
     const body = await (await SELF.fetch("https://x/api/snapshot")).json<any>();
     const props = Object.fromEntries(body.vessels.features.map((f: any) => [f.properties.mmsi, f.properties]));

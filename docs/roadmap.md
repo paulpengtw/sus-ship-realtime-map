@@ -47,3 +47,9 @@ generating candidates from four sources, `GET/POST /api/labels/*`, and `#mode=re
 and [spec §3](superpowers/specs/2026-07-18-threat-model-finer-granularity-design.md#3-phase-0---labeling-harness).
 
 Next: accumulate ≥ 200 labeled incidents (≥ 40 threat, ≥ 100 benign) before starting Phase 1.
+
+## Free-tier write budget — shipped (2026-09-05)
+
+- Added in-memory live snapshots, on-change vessel writes, tracked-only breadcrumb persistence, and daily write-meter guardrails for the D1 free tier.
+- Added `/api/health` write-budget observability and migration 0007's position-history reset deployment runbook.
+- Design: `docs/superpowers/specs/2026-09-05-d1-free-tier-write-budget-design.md`.

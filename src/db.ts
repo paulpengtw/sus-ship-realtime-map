@@ -13,7 +13,9 @@ export function newPendingWrites(): PendingWrites {
   return { positions: [], events: [], vessels: new Map(), assessments: new Map() };
 }
 
-export async function flushWrites(db: D1Database, p: PendingWrites): Promise<void> {
+const D1_BATCH_CHUNK = 100; // statements per db.batch(); keeps each request well under D1's size limits
+
+export async function flushWrites(db: D1Database, p: PendingWrites): Promise<number> {
   const stmts: D1PreparedStatement[] = [];
 
   for (const s of p.vessels.values()) {
@@ -33,7 +35,7 @@ export async function flushWrites(db: D1Database, p: PendingWrites): Promise<voi
 
   for (const pos of p.positions) {
     stmts.push(db.prepare(
-      `INSERT OR REPLACE INTO positions (mmsi, ts, lon, lat, sog, cog) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+      `INSERT OR IGNORE INTO positions (mmsi, ts, lon, lat, sog, cog) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
     ).bind(pos.mmsi, pos.ts, pos.lon, pos.lat, pos.sog, pos.cog));
   }
 
@@ -53,7 +55,12 @@ export async function flushWrites(db: D1Database, p: PendingWrites): Promise<voi
     ).bind(a.id, a.mmsi, a.category, a.status, a.confidence, a.openedTs, a.updatedTs, a.closedTs, a.region ?? null, a.narrative, JSON.stringify(a.evidence), a.lastLon, a.lastLat));
   }
 
-  if (stmts.length) await db.batch(stmts);
+  let rowsWritten = 0;
+  for (let i = 0; i < stmts.length; i += D1_BATCH_CHUNK) {
+    const results = await db.batch(stmts.slice(i, i + D1_BATCH_CHUNK));
+    for (const r of results) rowsWritten += r.meta?.rows_written ?? 0;
+  }
+  return rowsWritten;
 }
 
 export async function loadRecentVesselStates(db: D1Database, sinceTs: number): Promise<VesselState[]> {
@@ -86,8 +93,8 @@ export interface RetentionTier { minAgeMs: number; maxAgeMs: number; bucketMs: n
 
 // Tiered thinning (trajectories spec §1): within each age tier keep the earliest point per
 // (mmsi, time-bucket); everything older than the last tier is deleted outright.
-export async function thinPositions(db: D1Database, now: number, tiers: readonly RetentionTier[]): Promise<void> {
-  if (!tiers.length) return;
+export async function thinPositions(db: D1Database, now: number, tiers: readonly RetentionTier[]): Promise<number> {
+  if (!tiers.length) return 0;
   const stmts = tiers.map((t) => db.prepare(
     `DELETE FROM positions
      WHERE ts >= ?1 AND ts < ?2
@@ -99,5 +106,8 @@ export async function thinPositions(db: D1Database, now: number, tiers: readonly
   ).bind(now - t.maxAgeMs, now - t.minAgeMs, t.bucketMs));
   const oldestMs = Math.max(...tiers.map((t) => t.maxAgeMs));
   stmts.push(db.prepare(`DELETE FROM positions WHERE ts < ?1`).bind(now - oldestMs));
-  await db.batch(stmts);
+  const results = await db.batch(stmts);
+  let rowsWritten = 0;
+  for (const r of results) rowsWritten += r.meta?.rows_written ?? 0;
+  return rowsWritten;
 }

@@ -56,4 +56,14 @@ describe("thinPositions", () => {
     await thinPositions(env.DB, NOW, CONFIG.retentionTiers);
     expect((await allTs()).map((r: any) => r.ts)).toEqual([NOW - 1000]);
   });
+
+  it("returns deleted rows and zero for empty retention tiers", async () => {
+    await insert(1, NOW - 181 * D);
+    await insert(1, NOW - 182 * D);
+    await insert(1, NOW - 183 * D);
+    await insert(1, NOW - 1000);
+    const rows = await thinPositions(env.DB, NOW, CONFIG.retentionTiers);
+    expect(rows).toBeGreaterThanOrEqual(3);
+    expect(await thinPositions(env.DB, NOW, [])).toBe(0);
+  });
 });

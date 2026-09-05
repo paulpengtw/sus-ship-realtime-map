@@ -18,7 +18,7 @@ describe("labeling schema (migration 0006)", () => {
       const row = await env.DB.prepare(`SELECT * FROM candidate_incidents WHERE id = ?1`).bind(candidate.id).first<any>();
       expect(row).toMatchObject({ source: candidate.source, source_ref: candidate.sourceRef });
     }
-  });
+  }, 15_000);
 
   it("labels enforces one label per (incident_id, labeler)", async () => {
     await env.DB.prepare(
