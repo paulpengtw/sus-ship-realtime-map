@@ -45,8 +45,16 @@ export const CONFIG = {
   assessmentCloseScore: 0.2,
   assessmentCloseAfterMs: 43_200_000,
   darkRepositionMinM: 9_260,
-  persistMinIntervalMs: 5 * 60 * 1000,
-  persistMinMoveM: 100,
+  // Write budget (spec 2026-09-05 §3–4). Breadcrumbs persist for tracked vessels only.
+  persistMinIntervalMs: 10 * 60 * 1000,
+  persistMinMoveM: 2000,
+  trackPersistMinScore: 0.4,              // category score (= confidence 0.2, the close threshold) at/above which breadcrumbs persist
+  trackBackfillWindowMs: 24 * 3_600_000,  // ring backfill span when a vessel becomes tracked
+  trackBackfillBucketMs: 10 * 60_000,     // one backfilled point per bucket
+  vesselRefreshMs: 6 * 3_600_000,         // max age of a vessels row before an optional refresh write; hydration window derives from it
+  pruneIntervalMs: 86_400_000,            // thinPositions cadence (was hourly)
+  d1DailyWriteBudget: 80_000,             // soft cap on rows_written per UTC day; optional writes pause above it
+  pendingPositionsCap: 2000,              // positions kept for retry after a failed flush
   // Tiered position retention (trajectories spec §1): ≤48 h raw, then 1 pt/10 min to 30 d, 1 pt/h to 180 d.
   retentionTiers: [
     { minAgeMs: 48 * 3_600_000, maxAgeMs: 30 * 86_400_000, bucketMs: 10 * 60_000 },
