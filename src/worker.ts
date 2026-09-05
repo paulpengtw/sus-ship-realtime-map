@@ -24,7 +24,11 @@ function trackerFetch(env: Env, path: string): Promise<Response> {
 
 function ensureTracker(env: Env, ctx: ExecutionContext): void {
   if (env.TEST_MIGRATIONS) return;
-  ctx.waitUntil(trackerFetch(env, "/ensure").catch((e) => console.error("ensure failed:", e)));
+  ctx.waitUntil(
+    trackerFetch(env, "/ensure")
+      .then((res) => res.arrayBuffer())
+      .catch((e) => console.error("ensure failed:", e)),
+  );
 }
 
 const rowToEvent = (r: any) => ({
@@ -56,7 +60,10 @@ export default {
 
     if (url.pathname === "/api/health") {
       const res = await trackerFetch(env, "/status");
-      if (!res.ok) return json({ error: "tracker unavailable" }, 503);
+      if (!res.ok) {
+        await res.arrayBuffer();
+        return json({ error: "tracker unavailable" }, 503);
+      }
       return json({ generatedAt: now, ...(await res.json<Record<string, unknown>>()) });
     }
 
@@ -78,7 +85,10 @@ export default {
       const region = regionParam(url);
       if (region === null) return json({ error: "bad region" }, 400);
       const res = await trackerFetch(env, `/snapshot?region=${region}`);
-      if (!res.ok) return json({ error: "tracker unavailable" }, 503);
+      if (!res.ok) {
+        await res.arrayBuffer();
+        return json({ error: "tracker unavailable" }, 503);
+      }
       return new Response(res.body, { status: 200, headers: CORS });
     }
 
@@ -141,7 +151,12 @@ export default {
     if (url.pathname === "/api/stats") {
       const DAY = 86_400_000;
       const countsRes = await trackerFetch(env, "/vessel-counts");
-      const counts = countsRes.ok ? await countsRes.json<Record<string, number>>() : {};
+      let counts: Record<string, number>;
+      if (countsRes.ok) counts = await countsRes.json<Record<string, number>>();
+      else {
+        await countsRes.arrayBuffer();
+        counts = {};
+      }
       const [ac, e24, hist] = await env.DB.batch([
         env.DB.prepare(`SELECT region, COUNT(*) AS c FROM assessments WHERE status = 'open' AND region IS NOT NULL GROUP BY region`),
         env.DB.prepare(`SELECT region, COUNT(*) AS c FROM events WHERE start_ts >= ?1 AND region IS NOT NULL GROUP BY region`)
