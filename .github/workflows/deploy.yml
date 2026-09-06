@@ -1,0 +1,55 @@
+# Continuous deployment to Cloudflare Workers.
+# Runs on every push to main and on manual dispatch. Tests gate the deploy; D1 migrations
+# are applied before the new worker code goes live. Secrets (repo settings → Secrets → Actions):
+#   CLOUDFLARE_API_TOKEN  — custom token: Account.Workers Scripts:Edit, Account.D1:Edit,
+#                           Account.Account Settings:Read (see README "Continuous deployment")
+#   CLOUDFLARE_ACCOUNT_ID — the Cloudflare account id
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time; never cancel a deploy that is already applying migrations.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Test, migrate, deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Build web assets
+        run: npm run build:web
+
+      # Applies only pending migrations; a no-op when the remote database is current.
+      # Migration DDL costs a handful of rows_written, so the first run of a new
+      # migration should land shortly after the 00:00 UTC D1 quota reset.
+      - name: Apply D1 migrations
+        run: npx wrangler d1 migrations apply cable-guard --remote
+
+      - name: Deploy worker
+        run: npx wrangler deploy
