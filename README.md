@@ -37,3 +37,24 @@ quota is available, i.e. shortly after 00:00 UTC:
     curl -s https://<worker>/api/health | jq .writes
 
 Watch `usedToday` for a day; expected 20k–40k at 23:59 UTC.
+
+### Continuous deployment
+
+`.github/workflows/deploy.yml` deploys on every push to `main` and on manual dispatch
+(Actions → Deploy → Run workflow). Each run does `npm ci`, `npm test`, `npm run build:web`,
+`wrangler d1 migrations apply cable-guard --remote`, then `wrangler deploy`, in that order,
+one run at a time.
+
+Repository secrets required (Settings → Secrets and variables → Actions):
+
+- `CLOUDFLARE_API_TOKEN` — a custom token scoped to this account with
+  **Account → Workers Scripts: Edit**, **Account → D1: Edit**, **Account → Account Settings: Read**.
+  Give it an expiry and rotate it.
+- `CLOUDFLARE_ACCOUNT_ID` — the account id shown on the Workers overview page.
+
+The job runs in the `production` GitHub environment, so a required-reviewer rule can be
+attached there to make deploys click-to-approve. Worker secrets (`AISSTREAM_KEY`,
+`GFW_TOKEN`) live on the worker and are untouched by deploys.
+
+Because a new migration's DDL costs D1 rows_written, merge or dispatch a run that carries a
+new migration shortly after 00:00 UTC.
